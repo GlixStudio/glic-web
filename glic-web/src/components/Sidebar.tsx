@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../core/AppContext';
 import { Slider } from './controls/Slider';
 import { Select } from './controls/Select';
@@ -20,6 +20,29 @@ export const Sidebar: React.FC = () => {
   const { config, setConfig, originalImage, isProcessing, setIsProcessing, setProcessedImage, encodedBlob, setEncodedBlob } = useApp();
   const [activeTab, setActiveTab] = useState(0);
   const [selectedPreset, setSelectedPreset] = useState<string>('default');
+  const [customPresets, setCustomPresets] = useState<Record<string, CodecConfig>>({});
+
+  useEffect(() => {
+    const saved = localStorage.getItem('glic_custom_presets');
+    if (saved) {
+      try {
+        setCustomPresets(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to load custom presets", e);
+      }
+    }
+  }, []);
+
+  const saveCustomPreset = () => {
+    const name = prompt("Enter a name for your preset:");
+    if (!name) return;
+    
+    const newPresets = { ...customPresets, [name]: config };
+    setCustomPresets(newPresets);
+    localStorage.setItem('glic_custom_presets', JSON.stringify(newPresets));
+    setSelectedPreset(name);
+    alert(`Preset '${name}' saved!`);
+  };
 
   const updateConfig = (fn: (c: CodecConfig) => void) => {
     const newConfig = new CodecConfig();
@@ -42,10 +65,21 @@ export const Sidebar: React.FC = () => {
   };
 
   const applyPreset = (name: string) => {
+    setSelectedPreset(name);
+
+    // Check custom presets first
+    if (customPresets[name]) {
+        const newConfig = new CodecConfig();
+        Object.assign(newConfig, customPresets[name]);
+        // Ensure deep copy of arrays if they exist in the saved object
+        // JSON.parse/stringify usually handles this but let's be safe if we add methods to CodecConfig later
+        setConfig(newConfig);
+        return;
+    }
+
     const p = (presetsData as Record<string, PresetData>)[name];
     if (!p) return;
 
-    setSelectedPreset(name);
     const newConfig = new CodecConfig();
 
     // Helper to safely get number or array value
@@ -148,12 +182,33 @@ export const Sidebar: React.FC = () => {
         <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider">
             <Settings className="w-3 h-3" /> Global Config
         </div>
-        <Select
-            label="Preset"
-            value={selectedPreset}
-            options={Object.keys(presetsData).sort().map(k => ({ label: k, value: k }))}
-            onChange={(v) => applyPreset(v as string)}
-        />
+        <div className="flex gap-2 items-end">
+            <div className="flex-1">
+                <Select
+                    label="Preset"
+                    value={selectedPreset}
+                    options={[
+                        ...Object.keys(customPresets).map(k => ({ label: `[Custom] ${k}`, value: k })),
+                        ...Object.keys(presetsData).sort().map(k => ({ label: k, value: k }))
+                    ]}
+                    onChange={(v) => applyPreset(v as string)}
+                />
+            </div>
+            <button 
+                onClick={saveCustomPreset}
+                className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg border border-zinc-700 transition-colors"
+                title="Save current settings as preset"
+            >
+                <Download className="w-4 h-4 rotate-180" />
+            </button>
+            <button 
+                onClick={() => alert(JSON.stringify(config, null, 2))}
+                className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg border border-zinc-700 transition-colors"
+                title="View Preset JSON"
+            >
+                <Settings className="w-4 h-4" />
+            </button>
+        </div>
         <Select
             label="Color Space"
             value={config.colorspace}
