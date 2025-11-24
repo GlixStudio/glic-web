@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useApp } from '../core/AppContext';
-import { Upload } from 'lucide-react';
+import { Upload, RefreshCw } from 'lucide-react';
 
 export const CanvasViewer: React.FC = () => {
   const { originalImage, setOriginalImage, processedImage } = useApp();
@@ -10,8 +10,11 @@ export const CanvasViewer: React.FC = () => {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
+
+    // Disable image smoothing for pixel-perfect rendering
+    ctx.imageSmoothingEnabled = false;
 
     if (processedImage) {
       const img = new Image();
@@ -54,8 +57,9 @@ export const CanvasViewer: React.FC = () => {
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
         canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { alpha: false });
         if (ctx) {
+          ctx.imageSmoothingEnabled = false;
           ctx.drawImage(img, 0, 0);
           const imageData = ctx.getImageData(0, 0, img.width, img.height);
           setOriginalImage(imageData);
@@ -103,8 +107,31 @@ export const CanvasViewer: React.FC = () => {
         <canvas 
           ref={canvasRef} 
           className="max-w-full max-h-full object-contain"
-          style={{ display: (originalImage || processedImage) ? 'block' : 'none' }}
+          style={{ 
+            display: (originalImage || processedImage) ? 'block' : 'none',
+            imageRendering: 'pixelated'
+          }}
         />
+        
+        {/* Change Image Button - appears when an image is loaded */}
+        {(originalImage || processedImage) && (
+          <div className="absolute top-4 right-4">
+            <input 
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              id="change-image-upload"
+              onChange={handleFileSelect}
+            />
+            <label 
+              htmlFor="change-image-upload" 
+              className="px-4 py-2 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 font-bold rounded-lg cursor-pointer transition-all flex items-center gap-2 shadow-lg border border-zinc-700 hover:border-zinc-600 backdrop-blur-sm"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Change Image
+            </label>
+          </div>
+        )}
       </div>
       
       {/* Overlay info or controls could go here */}

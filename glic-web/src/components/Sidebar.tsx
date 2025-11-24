@@ -17,7 +17,7 @@ type PresetData = {
 };
 
 export const Sidebar: React.FC = () => {
-  const { config, setConfig, originalImage, isProcessing, setIsProcessing, setProcessedImage, encodedBlob, setEncodedBlob } = useApp();
+  const { config, setConfig, originalImage, isProcessing, setIsProcessing, processedImage, setProcessedImage, encodedBlob, setEncodedBlob } = useApp();
   const [activeTab, setActiveTab] = useState(0);
   const [selectedPreset, setSelectedPreset] = useState<string>('default');
   const [customPresets, setCustomPresets] = useState<Record<string, CodecConfig>>({});
@@ -32,6 +32,42 @@ export const Sidebar: React.FC = () => {
       }
     }
   }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Only trigger if not in an input field
+      if (!['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        if (e.key === 'e' || e.key === 'E') {
+          e.preventDefault();
+          if (originalImage && !isProcessing) {
+            handleEncode();
+          }
+        } else if (e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          if (processedImage && !isProcessing) {
+            handleReEncode();
+          }
+        } else if (e.key === 's' || e.key === 'S') {
+          e.preventDefault();
+          if (processedImage) {
+            handleSaveImage();
+          }
+        } else if (e.key === 'g' || e.key === 'G') {
+          e.preventDefault();
+          if (encodedBlob) {
+            handleSaveGlic();
+          }
+        } else if (e.key === 'i' || e.key === 'I') {
+          e.preventDefault();
+          handleImportGlic();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [originalImage, processedImage, isProcessing, encodedBlob]);
 
   const saveCustomPreset = () => {
     const name = prompt("Enter a name for your preset:");
@@ -133,6 +169,7 @@ export const Sidebar: React.FC = () => {
     if (!originalImage) return;
     setIsProcessing(true);
     setEncodedBlob(null); // Clear previous result
+    setProcessedImage(null); // Clear previous processed image
     
     const worker = new Worker(new URL('../workers/codec.worker.ts', import.meta.url), { type: 'module' });
     
@@ -144,10 +181,11 @@ export const Sidebar: React.FC = () => {
         const canvas = document.createElement('canvas');
         canvas.width = preview.width;
         canvas.height = preview.height;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { alpha: false });
         if (ctx) {
+          ctx.imageSmoothingEnabled = false;
           ctx.putImageData(preview, 0, 0);
-          setProcessedImage(canvas.toDataURL());
+          setProcessedImage(canvas.toDataURL('image/png'));
         }
 
         setEncodedBlob(blob);
@@ -166,7 +204,70 @@ export const Sidebar: React.FC = () => {
     });
   };
 
-  const handleSave = () => {
+  const handleReEncode = () => {
+    if (!processedImage) return;
+    setIsProcessing(true);
+    setEncodedBlob(null); // Clear previous result
+    
+    // Convert the processed image URL back to ImageData
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      if (!ctx) {
+        setIsProcessing(false);
+        return;
+      }
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, img.width, img.height);
+      
+      const worker = new Worker(new URL('../workers/codec.worker.ts', import.meta.url), { type: 'module' });
+      
+      worker.onmessage = (e) => {
+        if (e.data.type === 'success') {
+          const { blob, preview } = e.data;
+          
+          // Create preview URL
+          const canvas = document.createElement('canvas');
+          canvas.width = preview.width;
+          canvas.height = preview.height;
+          const ctx = canvas.getContext('2d', { alpha: false });
+          if (ctx) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.putImageData(preview, 0, 0);
+            setProcessedImage(canvas.toDataURL('image/png'));
+          }
+
+          setEncodedBlob(blob);
+          setIsProcessing(false);
+        } else {
+          console.error(e.data.error);
+          setIsProcessing(false);
+        }
+        worker.terminate();
+      };
+      
+      worker.postMessage({
+        type: 'encode',
+        imageData: imageData,
+        config: config
+      });
+    };
+    img.src = processedImage;
+  };
+
+  const handleSaveImage = () => {
+    if (!processedImage) return;
+    const a = document.createElement('a');
+    a.href = processedImage;
+    a.download = 'glitched-image.png';
+    a.click();
+  };
+
+  const handleSaveGlic = () => {
     if (!encodedBlob) return;
     const url = URL.createObjectURL(encodedBlob);
     const a = document.createElement('a');
@@ -174,6 +275,31 @@ export const Sidebar: React.FC = () => {
     a.download = 'output.glic';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleImportGlic = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.glic';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const arrayBuffer = event.target?.result as ArrayBuffer;
+          // TODO: Implement proper .glic file parsing
+          // For now, just show an alert
+          alert('GLIC import feature is under development. File size: ' + arrayBuffer.byteLength + ' bytes');
+        } catch (error) {
+          console.error('Error importing GLIC:', error);
+          alert('Failed to import GLIC file');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    };
+    input.click();
   };
 
   const renderGlobalSettings = () => (
@@ -363,7 +489,7 @@ export const Sidebar: React.FC = () => {
       <div className="p-4 border-t border-zinc-900 bg-zinc-950 z-10 flex flex-col gap-3">
         <div className="flex gap-2">
             <button
-            className={`flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
+            className={`flex-1 py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all transform active:scale-95 ${
                 !originalImage || isProcessing
                 ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
@@ -375,30 +501,81 @@ export const Sidebar: React.FC = () => {
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
                 <>
-                <Play className="w-4 h-4 fill-current" /> ENCODE
+                <div className="flex items-center gap-2">
+                  <Play className="w-4 h-4 fill-current" /> 
+                  ENCODE
+                </div>
+                <span className="text-[10px] opacity-60 font-normal">E</span>
                 </>
             )}
             </button>
             
             <button
-            className={`flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
-                !encodedBlob
+            className={`flex-1 py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all transform active:scale-95 ${
+                !processedImage
                 ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
                 : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700'
             }`}
-            onClick={handleSave}
-            disabled={!encodedBlob}
+            onClick={handleSaveImage}
+            disabled={!processedImage}
             >
-            <Download className="w-4 h-4" /> SAVE
+            <div className="flex items-center gap-2">
+              <Download className="w-4 h-4" /> SAVE
+            </div>
+            <span className="text-[10px] opacity-60 font-normal">S</span>
             </button>
         </div>
         
-        <button
-            className="w-full py-2 rounded-lg text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border border-transparent hover:border-zinc-800 transition-all flex items-center justify-center gap-2"
-            onClick={() => alert("Import GLIC feature coming soon")}
-        >
-            <Settings className="w-3 h-3" /> Import .glic config
-        </button>
+        {processedImage && (
+          <button
+            className={`w-full py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all transform active:scale-95 ${
+                isProcessing
+                ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                : 'bg-purple-600 text-white hover:bg-purple-500 shadow-lg shadow-purple-900/20'
+            }`}
+            onClick={handleReEncode}
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+                <>
+                <div className="flex items-center gap-2">
+                  <Play className="w-4 h-4 fill-current" /> 
+                  RE-ENCODE (Iterative)
+                </div>
+                <span className="text-[10px] opacity-60 font-normal">R</span>
+                </>
+            )}
+          </button>
+        )}
+        
+        <div className="flex gap-2">
+          <button
+              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex flex-col items-center justify-center gap-1 ${
+                  !encodedBlob
+                  ? 'text-zinc-600 bg-zinc-900 cursor-not-allowed'
+                  : 'text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700'
+              }`}
+              onClick={handleSaveGlic}
+              disabled={!encodedBlob}
+          >
+              <div className="flex items-center gap-2">
+                <Download className="w-3 h-3" /> Save .glic
+              </div>
+              <span className="text-[9px] opacity-60 font-normal">G</span>
+          </button>
+          
+          <button
+              className="flex-1 py-2 rounded-lg text-xs font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 transition-all flex flex-col items-center justify-center gap-1"
+              onClick={handleImportGlic}
+          >
+              <div className="flex items-center gap-2">
+                <Settings className="w-3 h-3" /> Import .glic
+              </div>
+              <span className="text-[9px] opacity-60 font-normal">I</span>
+          </button>
+        </div>
       </div>
     </div>
   );
