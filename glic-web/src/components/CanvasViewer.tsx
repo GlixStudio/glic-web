@@ -103,7 +103,7 @@ export const CanvasViewer: React.FC = () => {
           </label>
         </div>
       )}
-      <div className="relative max-w-[95%] max-h-[95%] overflow-hidden rounded-lg shadow-2xl shadow-black/50 border border-zinc-800">
+      <div className="relative max-w-[95%] max-h-[95%] overflow-hidden shadow-2xl shadow-black/50">
         <canvas 
           ref={canvasRef} 
           className="max-w-full max-h-full object-contain"

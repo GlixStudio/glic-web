@@ -8,6 +8,7 @@ import { WAVELETNO } from '../core/Transformations';
 import { CodecConfig } from '../core/Codec';
 import { Play, Download, Settings, Layers, Image as ImageIcon } from 'lucide-react';
 import presetsData from '../core/presets.json';
+import JSZip from 'jszip';
 
 const TABS = ['Global', 'Ch 1', 'Ch 2', 'Ch 3'];
 
@@ -21,6 +22,7 @@ export const Sidebar: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedPreset, setSelectedPreset] = useState<string>('default');
   const [customPresets, setCustomPresets] = useState<Record<string, CodecConfig>>({});
+  const [tileSize, setTileSize] = useState<number>(16);
 
   useEffect(() => {
     const saved = localStorage.getItem('glic_custom_presets');
@@ -286,13 +288,18 @@ export const Sidebar: React.FC = () => {
       
       // Convert to blob and download
       canvas.toBlob((blob) => {
-        if (!blob) return;
+        if (!blob) {
+          alert('Failed to generate image blob');
+          return;
+        }
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = getTimestampedFilename('glic-image', 'png');
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 100);
       }, 'image/png');
     };
     
@@ -305,8 +312,10 @@ export const Sidebar: React.FC = () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = getTimestampedFilename('glic-output', 'glic');
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   const handleImportGlic = () => {
@@ -346,6 +355,109 @@ export const Sidebar: React.FC = () => {
 
   const updateFilter = (key: keyof typeof filters, value: number) => {
     setFilters({ ...filters, [key]: value });
+  };
+
+  const generateTileset = async () => {
+    if (!processedImage) return;
+    
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = async () => {
+        try {
+          const sourceCanvas = document.createElement('canvas');
+          sourceCanvas.width = img.width;
+          sourceCanvas.height = img.height;
+          const sourceCtx = sourceCanvas.getContext('2d', { alpha: false });
+          
+          if (!sourceCtx) {
+            alert('Failed to create canvas context');
+            return;
+          }
+          
+          sourceCtx.imageSmoothingEnabled = false;
+          sourceCtx.filter = `hue-rotate(${filters.hue}deg) saturate(${filters.saturation}%) brightness(${filters.brightness}%) contrast(${filters.contrast}%)`;
+          sourceCtx.drawImage(img, 0, 0);
+          
+          // Calculate number of tiles
+          const tilesX = Math.floor(img.width / tileSize);
+          const tilesY = Math.floor(img.height / tileSize);
+          const totalTiles = tilesX * tilesY;
+          
+          if (totalTiles === 0) {
+            alert(`Image is too small for ${tileSize}x${tileSize} tiles!`);
+            return;
+          }
+          
+          // Create zip file
+          const zip = new JSZip();
+          
+          // Extract each tile as a separate file
+          for (let y = 0; y < tilesY; y++) {
+            for (let x = 0; x < tilesX; x++) {
+              // Create a canvas for each individual tile
+              const tileCanvas = document.createElement('canvas');
+              tileCanvas.width = tileSize;
+              tileCanvas.height = tileSize;
+              const tileCtx = tileCanvas.getContext('2d', { alpha: false });
+              
+              if (!tileCtx) continue;
+              
+              tileCtx.imageSmoothingEnabled = false;
+              
+              // Extract tile data from source
+              const tileData = sourceCtx.getImageData(
+                x * tileSize, 
+                y * tileSize, 
+                tileSize, 
+                tileSize
+              );
+              tileCtx.putImageData(tileData, 0, 0);
+              
+              // Convert tile to blob
+              const tileDataUrl = tileCanvas.toDataURL('image/png');
+              const tileBlob = await fetch(tileDataUrl).then(res => res.blob());
+              
+              // Add to zip with descriptive filename
+              const filename = `tile_${x}_${y}.png`;
+              zip.file(filename, tileBlob);
+            }
+          }
+          
+          // Generate zip file
+          const zipBlob = await zip.generateAsync({ type: 'blob' });
+          
+          // Download the zip
+          const url = URL.createObjectURL(zipBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = getTimestampedFilename(`tileset-${tileSize}x${tileSize}`, 'zip');
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          
+          // Clean up
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            alert(`Generated tileset: ${tilesX} × ${tilesY} = ${totalTiles} tiles`);
+          }, 100);
+        } catch (error) {
+          console.error('Error generating tileset:', error);
+          alert('Failed to generate tileset: ' + (error instanceof Error ? error.message : 'Unknown error'));
+        }
+      };
+      
+      img.onerror = () => {
+        alert('Failed to load image for tileset generation');
+      };
+      
+      img.src = processedImage;
+    } catch (error) {
+      console.error('Error in generateTileset:', error);
+      alert('Failed to start tileset generation: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
   };
 
   const renderGlobalSettings = () => (
@@ -579,6 +691,33 @@ export const Sidebar: React.FC = () => {
               step={1}
               onChange={(v) => updateFilter('contrast', v)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Tileset Generator Section - Only show when there's a processed image */}
+      {processedImage && (
+        <div className="p-4 border-t border-zinc-900 bg-zinc-950/50 backdrop-blur-sm">
+          <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-3">
+            <Layers className="w-3 h-3" /> Tileset Generator
+          </div>
+          <div className="space-y-3">
+            <Select
+              label="Tile Size"
+              value={tileSize}
+              options={[
+                { label: '16×16', value: 16 },
+                { label: '32×32', value: 32 },
+                { label: '64×64', value: 64 }
+              ]}
+              onChange={(v) => setTileSize(v as number)}
+            />
+            <button
+              onClick={generateTileset}
+              className="w-full py-2.5 rounded-lg font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
+            >
+              <Download className="w-4 h-4" /> Generate Tileset
+            </button>
           </div>
         </div>
       )}
