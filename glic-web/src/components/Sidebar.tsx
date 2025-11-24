@@ -9,6 +9,7 @@ import { CodecConfig } from '../core/Codec';
 import { Play, Download, Settings, Layers, Image as ImageIcon } from 'lucide-react';
 import presetsData from '../core/presets.json';
 import JSZip from 'jszip';
+import GIF from 'gif.js';
 
 const TABS = ['Global', 'Ch 1', 'Ch 2', 'Ch 3'];
 
@@ -23,6 +24,9 @@ export const Sidebar: React.FC = () => {
   const [selectedPreset, setSelectedPreset] = useState<string>('default');
   const [customPresets, setCustomPresets] = useState<Record<string, CodecConfig>>({});
   const [tileSize, setTileSize] = useState<number>(16);
+  const [animationFormat, setAnimationFormat] = useState<'gif' | 'webm' | 'mp4'>('gif');
+  const [animationFps, setAnimationFps] = useState<number>(10);
+  const [isGeneratingAnimation, setIsGeneratingAnimation] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('glic_custom_presets');
@@ -131,6 +135,7 @@ export const Sidebar: React.FC = () => {
     
     // Channels
     for (let i = 0; i < 3; i++) {
+        // min/max are stored as slider values (exponent), need to convert to actual size
         newConfig.min_block_size[i] = Math.pow(2, getVal(`ch${i}min`, 2));
         newConfig.max_block_size[i] = Math.pow(2, getVal(`ch${i}max`, 8));
         newConfig.segmentation_precision[i] = getVal(`ch${i}thr`, 15); // 'thr' maps to precision/threshold
@@ -145,22 +150,38 @@ export const Sidebar: React.FC = () => {
             newConfig.clamp_method[i] = 0;
         }
 
-        // Transform Type: [1,0,0]->FWT(0), [0,1,0]->WPT(1), [0,0,1]->Random(-1)?
-        // Wait, original code: 
-        // trans.addItem("NONE", 0); -> This is transform_method=0
-        // But transform_type is separate?
-        // In JSON: ch0transtype: [1.0, 0.0, 0.0]. 
-        // Let's assume: index 0 -> FWT, index 1 -> WPT.
+        // Transform Type: RadioButton array [FWT, WPT, Random]
+        // [1.0, 0.0, 0.0] -> FWT(0), [0.0, 1.0, 0.0] -> WPT(1), [0.0, 0.0, 1.0] -> Random(-1)
         const transTypeArr = p[`ch${i}transtype`];
-        if (Array.isArray(transTypeArr)) {
-             if (transTypeArr[1] > 0.5) newConfig.transform_type[i] = 1; // WPT
-             else if (transTypeArr[2] > 0.5) newConfig.transform_type[i] = -1; // Random?
-             else newConfig.transform_type[i] = 0; // FWT
+        if (Array.isArray(transTypeArr) && transTypeArr.length >= 3) {
+            if (transTypeArr[1] > 0.5) {
+                newConfig.transform_type[i] = 1; // WPT
+            } else if (transTypeArr[2] > 0.5) {
+                newConfig.transform_type[i] = -1; // Random
+            } else {
+                newConfig.transform_type[i] = 0; // FWT (default)
+            }
+        } else {
+            newConfig.transform_type[i] = 0; // Default to FWT
         }
 
-        newConfig.transform_method[i] = getVal(`ch${i}trans`, 0);
+        // transform_method (wavelet) - JSON has the actual wavelet ID value, not index
+        // Clamp to valid range: -1 (RANDOM), 0 (NONE), or 1 to WAVELETNO-1
+        const transVal = getVal(`ch${i}trans`, 0);
+        if (transVal === -1 || (transVal >= 0 && transVal < 68)) {
+            newConfig.transform_method[i] = Math.round(transVal);
+        } else {
+            newConfig.transform_method[i] = 0; // Default to NONE if invalid
+        }
+        
         newConfig.transform_compress[i] = getVal(`ch${i}compress`, 0);
-        newConfig.transform_scale[i] = getVal(`ch${i}scale`, 20);
+        
+        // transform_scale: Slider stores exponent (2-24), converted to 2^exponent
+        // JSON has the slider value (which may be fractional due to conversion)
+        // Always convert with 2^value since slider range is 2-24
+        const scaleVal = getVal(`ch${i}scale`, 20);
+        newConfig.transform_scale[i] = Math.pow(2, scaleVal);
+        
         newConfig.encoding_method[i] = getVal(`ch${i}encoding`, 1);
     }
 
@@ -441,7 +462,6 @@ export const Sidebar: React.FC = () => {
           setTimeout(() => {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            alert(`Generated tileset: ${tilesX} × ${tilesY} = ${totalTiles} tiles`);
           }, 100);
         } catch (error) {
           console.error('Error generating tileset:', error);
@@ -457,6 +477,213 @@ export const Sidebar: React.FC = () => {
     } catch (error) {
       console.error('Error in generateTileset:', error);
       alert('Failed to start tileset generation: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
+  const generateAnimation = async () => {
+    if (!processedImage) return;
+    
+    setIsGeneratingAnimation(true);
+    
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = async () => {
+        try {
+          const sourceCanvas = document.createElement('canvas');
+          sourceCanvas.width = img.width;
+          sourceCanvas.height = img.height;
+          const sourceCtx = sourceCanvas.getContext('2d', { alpha: false });
+          
+          if (!sourceCtx) {
+            alert('Failed to create canvas context');
+            setIsGeneratingAnimation(false);
+            return;
+          }
+          
+          sourceCtx.imageSmoothingEnabled = false;
+          sourceCtx.filter = `hue-rotate(${filters.hue}deg) saturate(${filters.saturation}%) brightness(${filters.brightness}%) contrast(${filters.contrast}%)`;
+          sourceCtx.drawImage(img, 0, 0);
+          
+          // Calculate number of tiles
+          const tilesX = Math.floor(img.width / tileSize);
+          const tilesY = Math.floor(img.height / tileSize);
+          const totalTiles = tilesX * tilesY;
+          
+          if (totalTiles === 0) {
+            alert(`Image is too small for ${tileSize}x${tileSize} tiles!`);
+            setIsGeneratingAnimation(false);
+            return;
+          }
+          
+          // Create frames array from tiles (left to right, top to bottom)
+          const frames: ImageData[] = [];
+          for (let y = 0; y < tilesY; y++) {
+            for (let x = 0; x < tilesX; x++) {
+              const tileData = sourceCtx.getImageData(
+                x * tileSize, 
+                y * tileSize, 
+                tileSize, 
+                tileSize
+              );
+              frames.push(tileData);
+            }
+          }
+          
+          if (animationFormat === 'gif') {
+            // Generate GIF using gif.js
+            const gif = new GIF({
+              workers: 2,
+              quality: 10,
+              width: tileSize,
+              height: tileSize,
+              repeat: 0
+            });
+            
+            frames.forEach((frame) => {
+              const frameCanvas = document.createElement('canvas');
+              frameCanvas.width = tileSize;
+              frameCanvas.height = tileSize;
+              const frameCtx = frameCanvas.getContext('2d', { alpha: false });
+              if (frameCtx) {
+                frameCtx.imageSmoothingEnabled = false;
+                frameCtx.putImageData(frame, 0, 0);
+                gif.addFrame(frameCanvas, { delay: 1000 / animationFps });
+              }
+            });
+            
+            gif.on('finished', (blob: Blob) => {
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = getTimestampedFilename(`tileset-animation-${tileSize}x${tileSize}`, 'gif');
+              a.style.display = 'none';
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                setIsGeneratingAnimation(false);
+              }, 100);
+            });
+            
+            gif.on('progress', (p: number) => {
+              // Optional: could show progress
+              console.log('GIF progress:', Math.round(p * 100) + '%');
+            });
+            
+            gif.render();
+          } else {
+            // Generate WebM/MP4 using MediaRecorder API
+            const canvas = document.createElement('canvas');
+            canvas.width = tileSize;
+            canvas.height = tileSize;
+            const ctx = canvas.getContext('2d', { alpha: false });
+            
+            if (!ctx) {
+              alert('Failed to create canvas context');
+              setIsGeneratingAnimation(false);
+              return;
+            }
+            
+            ctx.imageSmoothingEnabled = false;
+            
+            const stream = canvas.captureStream(animationFps);
+            
+            // Try to find a supported mime type
+            let mimeType = '';
+            if (animationFormat === 'webm') {
+              if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+                mimeType = 'video/webm;codecs=vp9';
+              } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+                mimeType = 'video/webm;codecs=vp8';
+              } else {
+                mimeType = 'video/webm';
+              }
+            } else {
+              if (MediaRecorder.isTypeSupported('video/mp4;codecs=h264')) {
+                mimeType = 'video/mp4;codecs=h264';
+              } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+                mimeType = 'video/webm;codecs=vp9';
+                console.warn('MP4 not supported, using WebM instead');
+              } else {
+                mimeType = 'video/webm';
+                console.warn('MP4 not supported, using WebM instead');
+              }
+            }
+            
+            const mediaRecorder = new MediaRecorder(stream, {
+              mimeType: mimeType,
+              videoBitsPerSecond: 2500000
+            });
+            
+            const chunks: Blob[] = [];
+            
+            mediaRecorder.ondataavailable = (e) => {
+              if (e.data.size > 0) {
+                chunks.push(e.data);
+              }
+            };
+            
+            mediaRecorder.onerror = (e) => {
+              console.error('MediaRecorder error:', e);
+              alert('Error recording animation. Your browser may not support this format.');
+              setIsGeneratingAnimation(false);
+              stream.getTracks().forEach(track => track.stop());
+            };
+            
+            mediaRecorder.onstop = () => {
+              const blob = new Blob(chunks, { type: mimeType });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              const extension = animationFormat === 'webm' ? 'webm' : (mimeType.includes('webm') ? 'webm' : 'mp4');
+              a.download = getTimestampedFilename(`tileset-animation-${tileSize}x${tileSize}`, extension);
+              a.style.display = 'none';
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                setIsGeneratingAnimation(false);
+              }, 100);
+            };
+            
+            mediaRecorder.start();
+            
+            // Draw frames at the specified FPS
+            let frameIndex = 0;
+            const drawFrame = () => {
+              if (frameIndex < frames.length) {
+                ctx.putImageData(frames[frameIndex], 0, 0);
+                frameIndex++;
+                setTimeout(drawFrame, 1000 / animationFps);
+              } else {
+                mediaRecorder.stop();
+                stream.getTracks().forEach(track => track.stop());
+              }
+            };
+            
+            drawFrame();
+          }
+        } catch (error) {
+          console.error('Error generating animation:', error);
+          alert('Failed to generate animation: ' + (error instanceof Error ? error.message : 'Unknown error'));
+          setIsGeneratingAnimation(false);
+        }
+      };
+      
+      img.onerror = () => {
+        alert('Failed to load image for animation generation');
+        setIsGeneratingAnimation(false);
+      };
+      
+      img.src = processedImage;
+    } catch (error) {
+      console.error('Error in generateAnimation:', error);
+      alert('Failed to start animation generation: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      setIsGeneratingAnimation(false);
     }
   };
 
@@ -716,8 +943,54 @@ export const Sidebar: React.FC = () => {
               onClick={generateTileset}
               className="w-full py-2.5 rounded-lg font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
             >
-              <Download className="w-4 h-4" /> Generate Tileset
+              <Download className="w-4 h-4" /> Generate Tileset (ZIP)
             </button>
+            
+            <div className="pt-2 border-t border-zinc-800">
+              <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-3">
+                <Play className="w-3 h-3" /> Animation
+              </div>
+              <div className="space-y-3">
+                <Select
+                  label="Format"
+                  value={animationFormat}
+                  options={[
+                    { label: 'GIF', value: 'gif' },
+                    { label: 'WebM', value: 'webm' },
+                    { label: 'MP4', value: 'mp4' }
+                  ]}
+                  onChange={(v) => setAnimationFormat(v as 'gif' | 'webm' | 'mp4')}
+                />
+                <Slider
+                  label="FPS"
+                  value={animationFps}
+                  min={1}
+                  max={60}
+                  step={1}
+                  onChange={(v) => setAnimationFps(v)}
+                />
+                <button
+                  onClick={generateAnimation}
+                  disabled={isGeneratingAnimation}
+                  className={`w-full py-2.5 rounded-lg font-bold text-sm transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-lg ${
+                    isGeneratingAnimation
+                      ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                      : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/20'
+                  }`}
+                >
+                  {isGeneratingAnimation ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-current" /> Generate Animation
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
