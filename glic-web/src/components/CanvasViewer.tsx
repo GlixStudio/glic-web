@@ -3,7 +3,7 @@ import { useApp } from '../core/AppContext';
 import { Upload, RefreshCw } from 'lucide-react';
 
 export const CanvasViewer: React.FC = () => {
-  const { originalImage, setOriginalImage, processedImage } = useApp();
+  const { originalImage, setOriginalImage, processedImage, filters } = useApp();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -109,7 +109,8 @@ export const CanvasViewer: React.FC = () => {
           className="max-w-full max-h-full object-contain"
           style={{ 
             display: (originalImage || processedImage) ? 'block' : 'none',
-            imageRendering: 'pixelated'
+            imageRendering: 'pixelated',
+            filter: processedImage ? `hue-rotate(${filters.hue}deg) saturate(${filters.saturation}%) brightness(${filters.brightness}%) contrast(${filters.contrast}%)` : 'none'
           }}
         />
         

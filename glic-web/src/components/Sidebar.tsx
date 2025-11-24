@@ -17,7 +17,7 @@ type PresetData = {
 };
 
 export const Sidebar: React.FC = () => {
-  const { config, setConfig, originalImage, isProcessing, setIsProcessing, processedImage, setProcessedImage, encodedBlob, setEncodedBlob } = useApp();
+  const { config, setConfig, originalImage, isProcessing, setIsProcessing, processedImage, setProcessedImage, encodedBlob, setEncodedBlob, filters, setFilters } = useApp();
   const [activeTab, setActiveTab] = useState(0);
   const [selectedPreset, setSelectedPreset] = useState<string>('default');
   const [customPresets, setCustomPresets] = useState<Record<string, CodecConfig>>({});
@@ -259,12 +259,44 @@ export const Sidebar: React.FC = () => {
     img.src = processedImage;
   };
 
+  const getTimestampedFilename = (prefix: string, extension: string) => {
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5); // YYYY-MM-DDTHH-MM-SS
+    return `${prefix}_${timestamp}.${extension}`;
+  };
+
   const handleSaveImage = () => {
     if (!processedImage) return;
-    const a = document.createElement('a');
-    a.href = processedImage;
-    a.download = 'glitched-image.png';
-    a.click();
+    
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      
+      if (!ctx) return;
+      
+      ctx.imageSmoothingEnabled = false;
+      
+      // Apply CSS filters to the canvas context
+      ctx.filter = `hue-rotate(${filters.hue}deg) saturate(${filters.saturation}%) brightness(${filters.brightness}%) contrast(${filters.contrast}%)`;
+      
+      ctx.drawImage(img, 0, 0);
+      
+      // Convert to blob and download
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getTimestampedFilename('glic-image', 'png');
+        a.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    };
+    
+    img.src = processedImage;
   };
 
   const handleSaveGlic = () => {
@@ -272,7 +304,7 @@ export const Sidebar: React.FC = () => {
     const url = URL.createObjectURL(encodedBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'output.glic';
+    a.download = getTimestampedFilename('glic-output', 'glic');
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -300,6 +332,20 @@ export const Sidebar: React.FC = () => {
       reader.readAsArrayBuffer(file);
     };
     input.click();
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      hue: 0,
+      saturation: 100,
+      lightness: 100,
+      brightness: 100,
+      contrast: 100
+    });
+  };
+
+  const updateFilter = (key: keyof typeof filters, value: number) => {
+    setFilters({ ...filters, [key]: value });
   };
 
   const renderGlobalSettings = () => (
@@ -485,6 +531,57 @@ export const Sidebar: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-zinc-950">
         {activeTab === 0 ? renderGlobalSettings() : renderChannelSettings(activeTab - 1)}
       </div>
+
+      {/* Image Filters Section - Only show when there's a processed image */}
+      {processedImage && (
+        <div className="p-4 border-t border-zinc-900 bg-zinc-950/50 backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider">
+              <ImageIcon className="w-3 h-3" /> Image Adjustments
+            </div>
+            <button 
+              onClick={resetFilters}
+              className="px-2 py-1 text-[10px] font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-800 hover:border-zinc-700 transition-all"
+            >
+              Reset
+            </button>
+          </div>
+          <div className="space-y-2">
+            <Slider
+              label="Hue Rotate"
+              value={filters.hue}
+              min={-180}
+              max={180}
+              step={1}
+              onChange={(v) => updateFilter('hue', v)}
+            />
+            <Slider
+              label="Saturation"
+              value={filters.saturation}
+              min={0}
+              max={200}
+              step={1}
+              onChange={(v) => updateFilter('saturation', v)}
+            />
+            <Slider
+              label="Brightness"
+              value={filters.brightness}
+              min={0}
+              max={200}
+              step={1}
+              onChange={(v) => updateFilter('brightness', v)}
+            />
+            <Slider
+              label="Contrast"
+              value={filters.contrast}
+              min={0}
+              max={200}
+              step={1}
+              onChange={(v) => updateFilter('contrast', v)}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="p-4 border-t border-zinc-900 bg-zinc-950 z-10 flex flex-col gap-3">
         <div className="flex gap-2">

@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useState, type ReactNode } from 'react';
 import { CodecConfig } from './Codec';
 
+export interface ImageFilters {
+  hue: number;
+  saturation: number;
+  lightness: number;
+  brightness: number;
+  contrast: number;
+}
+
 interface AppState {
   config: CodecConfig;
   setConfig: (c: CodecConfig) => void;
@@ -12,6 +20,8 @@ interface AppState {
   setEncodedBlob: (blob: Blob | null) => void;
   isProcessing: boolean;
   setIsProcessing: (b: boolean) => void;
+  filters: ImageFilters;
+  setFilters: (f: ImageFilters) => void;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -22,6 +32,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [encodedBlob, setEncodedBlob] = useState<Blob | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [filters, setFilters] = useState<ImageFilters>({
+    hue: 0,
+    saturation: 100,
+    lightness: 100,
+    brightness: 100,
+    contrast: 100
+  });
 
   return (
     <AppContext.Provider value={{
@@ -34,7 +51,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       encodedBlob,
       setEncodedBlob,
       isProcessing,
-      setIsProcessing
+      setIsProcessing,
+      filters,
+      setFilters
     }}>
       {children}
     </AppContext.Provider>
