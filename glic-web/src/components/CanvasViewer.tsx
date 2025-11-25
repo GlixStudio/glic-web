@@ -3,8 +3,10 @@ import { useApp } from '../core/AppContext';
 import { Upload, RefreshCw } from 'lucide-react';
 
 export const CanvasViewer: React.FC = () => {
-  const { originalImage, setOriginalImage, processedImage, filters } = useApp();
+  const { originalImage, setOriginalImage, processedImage, setProcessedImage, encodedBlob, setEncodedBlob, filters } = useApp();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const changeImageInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
@@ -63,6 +65,9 @@ export const CanvasViewer: React.FC = () => {
           ctx.drawImage(img, 0, 0);
           const imageData = ctx.getImageData(0, 0, img.width, img.height);
           setOriginalImage(imageData);
+          // Clear processed image and encoded blob when changing image
+          setProcessedImage(null);
+          setEncodedBlob(null);
         }
       };
       img.src = event.target?.result as string;
@@ -116,21 +121,30 @@ export const CanvasViewer: React.FC = () => {
         
         {/* Change Image Button - appears when an image is loaded */}
         {(originalImage || processedImage) && (
-          <div className="absolute top-4 right-4">
+          <div className="absolute top-4 right-4 z-10">
             <input 
+              ref={changeImageInputRef}
               type="file" 
               accept="image/*" 
               className="hidden" 
               id="change-image-upload"
-              onChange={handleFileSelect}
+              onChange={(e) => {
+                handleFileSelect(e);
+                // Reset input so same file can be selected again
+                if (e.target) {
+                  e.target.value = '';
+                }
+              }}
             />
-            <label 
-              htmlFor="change-image-upload" 
+            <button
+              onClick={() => {
+                changeImageInputRef.current?.click();
+              }}
               className="px-4 py-2 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 font-bold rounded-lg cursor-pointer transition-all flex items-center gap-2 shadow-lg border border-zinc-700 hover:border-zinc-600 backdrop-blur-sm"
             >
               <RefreshCw className="w-4 h-4" />
               Change Image
-            </label>
+            </button>
           </div>
         )}
       </div>

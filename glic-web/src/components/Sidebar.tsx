@@ -6,7 +6,7 @@ import { COLORSPACES, getColorSpaceName } from '../core/ColorSpaces';
 import { predict_name, MAX_PRED } from '../core/Predictions';
 import { WAVELETNO } from '../core/Transformations';
 import { CodecConfig } from '../core/Codec';
-import { Play, Download, Settings, Layers, Image as ImageIcon } from 'lucide-react';
+import { Play, Download, Settings, Layers, Image as ImageIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import presetsData from '../core/presets.json';
 import JSZip from 'jszip';
 import GIF from 'gif.js';
@@ -27,6 +27,10 @@ export const Sidebar: React.FC = () => {
   const [animationFormat, setAnimationFormat] = useState<'gif' | 'webm' | 'mp4'>('gif');
   const [animationFps, setAnimationFps] = useState<number>(10);
   const [isGeneratingAnimation, setIsGeneratingAnimation] = useState(false);
+  const [animationQuality, setAnimationQuality] = useState<number>(80);
+  const [animationProgress, setAnimationProgress] = useState<number>(0);
+  const [filtersExpanded, setFiltersExpanded] = useState<boolean>(true);
+  const [tilesetExpanded, setTilesetExpanded] = useState<boolean>(true);
 
   useEffect(() => {
     const saved = localStorage.getItem('glic_custom_presets');
@@ -484,6 +488,7 @@ export const Sidebar: React.FC = () => {
     if (!processedImage) return;
     
     setIsGeneratingAnimation(true);
+    setAnimationProgress(0);
     
     try {
       const img = new Image();
@@ -517,40 +522,45 @@ export const Sidebar: React.FC = () => {
             return;
           }
           
-          // Create frames array from tiles (left to right, top to bottom)
-          const frames: ImageData[] = [];
+          // Create frame canvases upfront (more efficient)
+          const frameCanvases: HTMLCanvasElement[] = [];
           for (let y = 0; y < tilesY; y++) {
             for (let x = 0; x < tilesX; x++) {
-              const tileData = sourceCtx.getImageData(
-                x * tileSize, 
-                y * tileSize, 
-                tileSize, 
-                tileSize
-              );
-              frames.push(tileData);
-            }
-          }
-          
-          if (animationFormat === 'gif') {
-            // Generate GIF using gif.js
-            const gif = new GIF({
-              workers: 2,
-              quality: 10,
-              width: tileSize,
-              height: tileSize,
-              repeat: 0
-            });
-            
-            frames.forEach((frame) => {
               const frameCanvas = document.createElement('canvas');
               frameCanvas.width = tileSize;
               frameCanvas.height = tileSize;
               const frameCtx = frameCanvas.getContext('2d', { alpha: false });
               if (frameCtx) {
                 frameCtx.imageSmoothingEnabled = false;
-                frameCtx.putImageData(frame, 0, 0);
-                gif.addFrame(frameCanvas, { delay: 1000 / animationFps });
+                const tileData = sourceCtx.getImageData(
+                  x * tileSize, 
+                  y * tileSize, 
+                  tileSize, 
+                  tileSize
+                );
+                frameCtx.putImageData(tileData, 0, 0);
+                frameCanvases.push(frameCanvas);
               }
+            }
+          }
+          
+          if (animationFormat === 'gif') {
+            // Generate GIF using gif.js with quality settings
+            // Quality: 1-30 (lower = better quality, higher file size)
+            const gifQuality = Math.max(1, Math.min(30, Math.round(30 * (100 - animationQuality) / 100)));
+            
+            const gif = new GIF({
+              workers: 4, // More workers for faster processing
+              quality: gifQuality,
+              width: tileSize,
+              height: tileSize,
+              repeat: 0,
+              workerScript: undefined // Use default worker
+            });
+            
+            // Add all frames
+            frameCanvases.forEach((frameCanvas) => {
+              gif.addFrame(frameCanvas, { delay: 1000 / animationFps });
             });
             
             gif.on('finished', (blob: Blob) => {
@@ -565,17 +575,18 @@ export const Sidebar: React.FC = () => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 setIsGeneratingAnimation(false);
+                setAnimationProgress(0);
               }, 100);
             });
             
             gif.on('progress', (p: number) => {
-              // Optional: could show progress
-              console.log('GIF progress:', Math.round(p * 100) + '%');
+              setAnimationProgress(Math.round(p * 100));
             });
             
             gif.render();
           } else {
-            // Generate WebM/MP4 using MediaRecorder API
+            // For video, use a more efficient approach
+            // Create all frames as images first, then encode
             const canvas = document.createElement('canvas');
             canvas.width = tileSize;
             canvas.height = tileSize;
@@ -589,10 +600,14 @@ export const Sidebar: React.FC = () => {
             
             ctx.imageSmoothingEnabled = false;
             
-            const stream = canvas.captureStream(animationFps);
+            // Use higher frame rate for capture to ensure smooth playback
+            const captureFps = Math.max(animationFps, 30);
+            const stream = canvas.captureStream(captureFps);
             
-            // Try to find a supported mime type
+            // Determine mime type and bitrate based on quality
             let mimeType = '';
+            const bitrate = Math.round(1000000 + (animationQuality / 100) * 4000000); // 1-5 Mbps based on quality
+            
             if (animationFormat === 'webm') {
               if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
                 mimeType = 'video/webm;codecs=vp9';
@@ -602,20 +617,23 @@ export const Sidebar: React.FC = () => {
                 mimeType = 'video/webm';
               }
             } else {
-              if (MediaRecorder.isTypeSupported('video/mp4;codecs=h264')) {
-                mimeType = 'video/mp4;codecs=h264';
-              } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+              // MP4 support is limited - most browsers don't support H.264 encoding
+              // Fall back to WebM which is widely supported
+              if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
                 mimeType = 'video/webm;codecs=vp9';
-                console.warn('MP4 not supported, using WebM instead');
+                console.warn('MP4 encoding not supported in this browser. Using WebM instead.');
+              } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+                mimeType = 'video/webm;codecs=vp8';
+                console.warn('MP4 encoding not supported in this browser. Using WebM instead.');
               } else {
                 mimeType = 'video/webm';
-                console.warn('MP4 not supported, using WebM instead');
+                console.warn('MP4 encoding not supported in this browser. Using WebM instead.');
               }
             }
             
             const mediaRecorder = new MediaRecorder(stream, {
               mimeType: mimeType,
-              videoBitsPerSecond: 2500000
+              videoBitsPerSecond: bitrate
             });
             
             const chunks: Blob[] = [];
@@ -630,6 +648,7 @@ export const Sidebar: React.FC = () => {
               console.error('MediaRecorder error:', e);
               alert('Error recording animation. Your browser may not support this format.');
               setIsGeneratingAnimation(false);
+              setAnimationProgress(0);
               stream.getTracks().forEach(track => track.stop());
             };
             
@@ -637,8 +656,8 @@ export const Sidebar: React.FC = () => {
               const blob = new Blob(chunks, { type: mimeType });
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
-              a.href = url;
-              const extension = animationFormat === 'webm' ? 'webm' : (mimeType.includes('webm') ? 'webm' : 'mp4');
+              // Always use webm extension since MP4 encoding isn't supported
+              const extension = mimeType.includes('webm') ? 'webm' : 'mp4';
               a.download = getTimestampedFilename(`tileset-animation-${tileSize}x${tileSize}`, extension);
               a.style.display = 'none';
               document.body.appendChild(a);
@@ -647,21 +666,38 @@ export const Sidebar: React.FC = () => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 setIsGeneratingAnimation(false);
+                setAnimationProgress(0);
               }, 100);
             };
             
             mediaRecorder.start();
             
-            // Draw frames at the specified FPS
+            // Draw frames more efficiently - batch updates
             let frameIndex = 0;
+            const frameDelay = 1000 / animationFps;
+            const startTime = performance.now();
+            
             const drawFrame = () => {
-              if (frameIndex < frames.length) {
-                ctx.putImageData(frames[frameIndex], 0, 0);
+              if (frameIndex < frameCanvases.length) {
+                const frameCanvas = frameCanvases[frameIndex];
+                ctx.clearRect(0, 0, tileSize, tileSize);
+                ctx.drawImage(frameCanvas, 0, 0);
+                
                 frameIndex++;
-                setTimeout(drawFrame, 1000 / animationFps);
+                setAnimationProgress(Math.round((frameIndex / frameCanvases.length) * 100));
+                
+                // Use requestAnimationFrame for smoother timing
+                const elapsed = performance.now() - startTime;
+                const targetTime = frameIndex * frameDelay;
+                const delay = Math.max(0, targetTime - elapsed);
+                
+                setTimeout(drawFrame, delay);
               } else {
-                mediaRecorder.stop();
-                stream.getTracks().forEach(track => track.stop());
+                // Wait a bit for final frame to be recorded
+                setTimeout(() => {
+                  mediaRecorder.stop();
+                  stream.getTracks().forEach(track => track.stop());
+                }, frameDelay);
               }
             };
             
@@ -671,12 +707,14 @@ export const Sidebar: React.FC = () => {
           console.error('Error generating animation:', error);
           alert('Failed to generate animation: ' + (error instanceof Error ? error.message : 'Unknown error'));
           setIsGeneratingAnimation(false);
+          setAnimationProgress(0);
         }
       };
       
       img.onerror = () => {
         alert('Failed to load image for animation generation');
         setIsGeneratingAnimation(false);
+        setAnimationProgress(0);
       };
       
       img.src = processedImage;
@@ -684,13 +722,14 @@ export const Sidebar: React.FC = () => {
       console.error('Error in generateAnimation:', error);
       alert('Failed to start animation generation: ' + (error instanceof Error ? error.message : 'Unknown error'));
       setIsGeneratingAnimation(false);
+      setAnimationProgress(0);
     }
   };
 
   const renderGlobalSettings = () => (
-    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-4 duration-300">
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider">
+    <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
             <Settings className="w-3 h-3" /> Global Config
         </div>
         <div className="flex gap-2 items-end">
@@ -731,10 +770,10 @@ export const Sidebar: React.FC = () => {
   );
 
   const renderChannelSettings = (ch: number) => (
-    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4 duration-300">
+    <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-right-4 duration-300">
       
       {/* Segmentation Section */}
-      <div className="space-y-3 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
+      <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
         <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
             <Layers className="w-3 h-3" /> Segmentation
         </div>
@@ -759,7 +798,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Prediction Section */}
-      <div className="space-y-3 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
+      <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
         <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
             <ImageIcon className="w-3 h-3" /> Prediction
         </div>
@@ -775,7 +814,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Quantization Section */}
-      <div className="space-y-3 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
+      <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
         <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
             <Settings className="w-3 h-3" /> Quantization
         </div>
@@ -794,7 +833,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Transformation Section */}
-      <div className="space-y-3 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
+      <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
         <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
             <Layers className="w-3 h-3" /> Transformation
         </div>
@@ -828,7 +867,7 @@ export const Sidebar: React.FC = () => {
       </div>
       
       {/* Encoding Section */}
-      <div className="space-y-3 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
+      <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
          <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
             <Download className="w-3 h-3" /> Encoding
         </div>
@@ -867,221 +906,269 @@ export const Sidebar: React.FC = () => {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-zinc-950">
-        {activeTab === 0 ? renderGlobalSettings() : renderChannelSettings(activeTab - 1)}
+      {/* Scrollable content area - contains all sections */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar bg-zinc-950">
+        <div className="p-4 space-y-4">
+          {/* Settings Section */}
+          <div>
+            {activeTab === 0 ? renderGlobalSettings() : renderChannelSettings(activeTab - 1)}
+          </div>
+
+          {/* Image Filters Section - Only show when there's a processed image */}
+          {processedImage && (
+            <div className="border-t border-zinc-800 pt-4">
+              <button
+                onClick={() => setFiltersExpanded(!filtersExpanded)}
+                className="w-full flex items-center justify-between mb-3 group"
+              >
+                <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider group-hover:text-zinc-300 transition-colors">
+                  <ImageIcon className="w-3 h-3" /> Image Adjustments
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetFilters();
+                    }}
+                    className="px-2 py-1 text-[10px] font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-800 hover:border-zinc-700 transition-all"
+                  >
+                    Reset
+                  </button>
+                  {filtersExpanded ? (
+                    <ChevronUp className="w-4 h-4 text-zinc-500" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-zinc-500" />
+                  )}
+                </div>
+              </button>
+              {filtersExpanded && (
+                <div className="space-y-2">
+                  <Slider
+                    label="Hue Rotate"
+                    value={filters.hue}
+                    min={-180}
+                    max={180}
+                    step={1}
+                    onChange={(v) => updateFilter('hue', v)}
+                  />
+                  <Slider
+                    label="Saturation"
+                    value={filters.saturation}
+                    min={0}
+                    max={200}
+                    step={1}
+                    onChange={(v) => updateFilter('saturation', v)}
+                  />
+                  <Slider
+                    label="Brightness"
+                    value={filters.brightness}
+                    min={0}
+                    max={200}
+                    step={1}
+                    onChange={(v) => updateFilter('brightness', v)}
+                  />
+                  <Slider
+                    label="Contrast"
+                    value={filters.contrast}
+                    min={0}
+                    max={200}
+                    step={1}
+                    onChange={(v) => updateFilter('contrast', v)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tileset Generator Section - Only show when there's a processed image */}
+          {processedImage && (
+            <div className="border-t border-zinc-800 pt-4">
+              <button
+                onClick={() => setTilesetExpanded(!tilesetExpanded)}
+                className="w-full flex items-center justify-between mb-3 group"
+              >
+                <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider group-hover:text-zinc-300 transition-colors">
+                  <Layers className="w-3 h-3" /> Tileset Generator
+                </div>
+                {tilesetExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-zinc-500" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-zinc-500" />
+                )}
+              </button>
+              {tilesetExpanded && (
+                <div className="space-y-3">
+                  <Select
+                    label="Tile Size"
+                    value={tileSize}
+                    options={[
+                      { label: '16×16', value: 16 },
+                      { label: '32×32', value: 32 },
+                      { label: '64×64', value: 64 }
+                    ]}
+                    onChange={(v) => setTileSize(v as number)}
+                  />
+                  <button
+                    onClick={generateTileset}
+                    className="w-full py-2.5 rounded-lg font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
+                  >
+                    <Download className="w-4 h-4" /> Generate Tileset (ZIP)
+                  </button>
+                  
+                  <div className="pt-2 border-t border-zinc-800">
+                    <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-3">
+                      <Play className="w-3 h-3" /> Animation
+                    </div>
+                    <div className="space-y-3">
+                      <Select
+                        label="Format"
+                        value={animationFormat}
+                        options={[
+                          { label: 'GIF', value: 'gif' },
+                          { label: 'WebM (Recommended)', value: 'webm' },
+                          { label: 'MP4 (May use WebM)', value: 'mp4' }
+                        ]}
+                        onChange={(v) => setAnimationFormat(v as 'gif' | 'webm' | 'mp4')}
+                      />
+                      <Slider
+                        label="FPS"
+                        value={animationFps}
+                        min={1}
+                        max={60}
+                        step={1}
+                        onChange={(v) => setAnimationFps(v)}
+                      />
+                      <Slider
+                        label="Quality"
+                        value={animationQuality}
+                        min={10}
+                        max={100}
+                        step={5}
+                        onChange={(v) => setAnimationQuality(v)}
+                      />
+                      {isGeneratingAnimation && animationProgress > 0 && (
+                        <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="bg-purple-500 h-full transition-all duration-300"
+                            style={{ width: `${animationProgress}%` }}
+                          />
+                        </div>
+                      )}
+                      <button
+                        onClick={generateAnimation}
+                        disabled={isGeneratingAnimation}
+                        className={`w-full py-2.5 rounded-lg font-bold text-sm transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-lg ${
+                          isGeneratingAnimation
+                            ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                            : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/20'
+                        }`}
+                      >
+                        {isGeneratingAnimation ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            {animationProgress > 0 ? `Generating... ${animationProgress}%` : 'Generating...'}
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4 fill-current" /> Generate Animation
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Image Filters Section - Only show when there's a processed image */}
-      {processedImage && (
-        <div className="p-4 border-t border-zinc-900 bg-zinc-950/50 backdrop-blur-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider">
-              <ImageIcon className="w-3 h-3" /> Image Adjustments
-            </div>
-            <button 
-              onClick={resetFilters}
-              className="px-2 py-1 text-[10px] font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-800 hover:border-zinc-700 transition-all"
-            >
-              Reset
-            </button>
-          </div>
-          <div className="space-y-2">
-            <Slider
-              label="Hue Rotate"
-              value={filters.hue}
-              min={-180}
-              max={180}
-              step={1}
-              onChange={(v) => updateFilter('hue', v)}
-            />
-            <Slider
-              label="Saturation"
-              value={filters.saturation}
-              min={0}
-              max={200}
-              step={1}
-              onChange={(v) => updateFilter('saturation', v)}
-            />
-            <Slider
-              label="Brightness"
-              value={filters.brightness}
-              min={0}
-              max={200}
-              step={1}
-              onChange={(v) => updateFilter('brightness', v)}
-            />
-            <Slider
-              label="Contrast"
-              value={filters.contrast}
-              min={0}
-              max={200}
-              step={1}
-              onChange={(v) => updateFilter('contrast', v)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Tileset Generator Section - Only show when there's a processed image */}
-      {processedImage && (
-        <div className="p-4 border-t border-zinc-900 bg-zinc-950/50 backdrop-blur-sm">
-          <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-3">
-            <Layers className="w-3 h-3" /> Tileset Generator
-          </div>
-          <div className="space-y-3">
-            <Select
-              label="Tile Size"
-              value={tileSize}
-              options={[
-                { label: '16×16', value: 16 },
-                { label: '32×32', value: 32 },
-                { label: '64×64', value: 64 }
-              ]}
-              onChange={(v) => setTileSize(v as number)}
-            />
-            <button
-              onClick={generateTileset}
-              className="w-full py-2.5 rounded-lg font-bold text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
-            >
-              <Download className="w-4 h-4" /> Generate Tileset (ZIP)
-            </button>
-            
-            <div className="pt-2 border-t border-zinc-800">
-              <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-3">
-                <Play className="w-3 h-3" /> Animation
-              </div>
-              <div className="space-y-3">
-                <Select
-                  label="Format"
-                  value={animationFormat}
-                  options={[
-                    { label: 'GIF', value: 'gif' },
-                    { label: 'WebM', value: 'webm' },
-                    { label: 'MP4', value: 'mp4' }
-                  ]}
-                  onChange={(v) => setAnimationFormat(v as 'gif' | 'webm' | 'mp4')}
-                />
-                <Slider
-                  label="FPS"
-                  value={animationFps}
-                  min={1}
-                  max={60}
-                  step={1}
-                  onChange={(v) => setAnimationFps(v)}
-                />
-                <button
-                  onClick={generateAnimation}
-                  disabled={isGeneratingAnimation}
-                  className={`w-full py-2.5 rounded-lg font-bold text-sm transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-lg ${
-                    isGeneratingAnimation
-                      ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
-                      : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/20'
-                  }`}
-                >
-                  {isGeneratingAnimation ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4 fill-current" /> Generate Animation
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="p-4 border-t border-zinc-900 bg-zinc-950 z-10 flex flex-col gap-3">
+      {/* Fixed action buttons at bottom */}
+      <div className="p-3 border-t border-zinc-900 bg-zinc-950 z-10 flex flex-col gap-2 flex-shrink-0">
         <div className="flex gap-2">
             <button
-            className={`flex-1 py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all transform active:scale-95 ${
+            className={`flex-1 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
                 !originalImage || isProcessing
                 ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-900/20'
             }`}
             onClick={handleEncode}
             disabled={!originalImage || isProcessing}
+            title="Encode image (E)"
             >
             {isProcessing ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
                 <>
-                <div className="flex items-center gap-2">
                   <Play className="w-4 h-4 fill-current" /> 
-                  ENCODE
-                </div>
-                <span className="text-[10px] opacity-60 font-normal">E</span>
+                  <span className="text-sm">ENCODE</span>
+                  <span className="text-[10px] opacity-60 font-normal">E</span>
                 </>
             )}
             </button>
             
             <button
-            className={`flex-1 py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all transform active:scale-95 ${
+            className={`flex-1 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
                 !processedImage
                 ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
                 : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700'
             }`}
             onClick={handleSaveImage}
             disabled={!processedImage}
+            title="Save processed image (S)"
             >
-            <div className="flex items-center gap-2">
-              <Download className="w-4 h-4" /> SAVE
-            </div>
+            <Download className="w-4 h-4" />
+            <span className="text-sm">SAVE</span>
             <span className="text-[10px] opacity-60 font-normal">S</span>
             </button>
         </div>
         
         {processedImage && (
           <button
-            className={`w-full py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-0.5 transition-all transform active:scale-95 ${
+            className={`w-full py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
                 isProcessing
                 ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
                 : 'bg-purple-600 text-white hover:bg-purple-500 shadow-lg shadow-purple-900/20'
             }`}
             onClick={handleReEncode}
             disabled={isProcessing}
+            title="Re-encode iteratively (R)"
           >
             {isProcessing ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
                 <>
-                <div className="flex items-center gap-2">
                   <Play className="w-4 h-4 fill-current" /> 
-                  RE-ENCODE (Iterative)
-                </div>
-                <span className="text-[10px] opacity-60 font-normal">R</span>
+                  <span className="text-sm">RE-ENCODE</span>
+                  <span className="text-[10px] opacity-60 font-normal">R</span>
                 </>
             )}
           </button>
         )}
         
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-1 border-t border-zinc-800">
           <button
-              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex flex-col items-center justify-center gap-1 ${
+              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
                   !encodedBlob
                   ? 'text-zinc-600 bg-zinc-900 cursor-not-allowed'
                   : 'text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700'
               }`}
               onClick={handleSaveGlic}
               disabled={!encodedBlob}
+              title="Save .glic file (G)"
           >
-              <div className="flex items-center gap-2">
-                <Download className="w-3 h-3" /> Save .glic
-              </div>
+              <Download className="w-3 h-3" />
+              <span>Save .glic</span>
               <span className="text-[9px] opacity-60 font-normal">G</span>
           </button>
           
           <button
-              className="flex-1 py-2 rounded-lg text-xs font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 transition-all flex flex-col items-center justify-center gap-1"
+              className="flex-1 py-2 rounded-lg text-xs font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 transition-all flex items-center justify-center gap-1.5"
               onClick={handleImportGlic}
+              title="Import .glic file (I)"
           >
-              <div className="flex items-center gap-2">
-                <Settings className="w-3 h-3" /> Import .glic
-              </div>
+              <Settings className="w-3 h-3" />
+              <span>Import</span>
               <span className="text-[9px] opacity-60 font-normal">I</span>
           </button>
         </div>
