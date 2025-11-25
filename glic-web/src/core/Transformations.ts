@@ -1,4 +1,5 @@
 import wt from 'discrete-wavelets';
+import { customDwt, customIdwt, getCustomWaveletFilters, isCustomWavelet } from './CustomWavelets';
 
 export const TRANSTYPE_RANDOM = -1;
 export const TRANSTYPE_FWT = 0;
@@ -77,6 +78,64 @@ export const HAAR = 67; // haar
 
 export const WAVELETNO = 68;
 
+// List of supported wavelets by discrete-wavelets library
+// Note: Some higher-order wavelets (sym9+, some db16+) may fail at runtime
+// The caching mechanism will automatically fallback to a random working wavelet if a wavelet fails
+// Custom wavelets (cdf53, cdf97, battle23, legendre1-3) are implemented separately
+const SUPPORTED_WAVELETS = new Set([
+    'haar', 'db2', 'db3', 'db4', 'db5', 'db6', 'db7', 'db8', 'db9', 'db10',
+    'db11', 'db12', 'db13', 'db14', 'db15', 'db16', 'db17', 'db18', 'db19', 'db20',
+    'coif1', 'coif2', 'coif3', 'coif4', 'coif5',
+    'sym2', 'sym3', 'sym4', 'sym5', 'sym6', 'sym7', 'sym8', 'sym9', 'sym10',
+    'sym11', 'sym12', 'sym13', 'sym14', 'sym15', 'sym16', 'sym17', 'sym18', 'sym19', 'sym20',
+    'bior1.1', 'bior1.3', 'bior1.5', 'bior2.2', 'bior2.4', 'bior2.6', 'bior2.8',
+    'bior3.1', 'bior3.3', 'bior3.5', 'bior3.7', 'bior3.9', 'bior4.4', 'bior5.5', 'bior6.8',
+    // Note: 'dmey' is listed here but may fail - custom implementation available
+    'dmey',
+    // Custom wavelets (not supported by discrete-wavelets)
+    'cdf53', 'cdf97', 'battle23', 'legendre1', 'legendre2', 'legendre3', 'sym9', 'bior3.1', 'dmey'
+]);
+
+// List of reliable wavelets that are known to work well (for random fallback)
+// These are the most stable wavelets that rarely fail
+// Prefer library wavelets over custom ones for maximum reliability
+const RELIABLE_LIBRARY_WAVELETS = [
+    'haar', 'db2', 'db3', 'db4', 'db5', 'db6', 'db7', 'db8',
+    'coif1', 'coif2', 'coif3',
+    'sym2', 'sym3', 'sym4', 'sym5', 'sym6', 'sym7', 'sym8',
+    'bior1.1', 'bior1.3', 'bior2.2', 'bior2.4'
+];
+
+// Custom wavelets that are known to be stable (used as secondary fallback)
+const RELIABLE_CUSTOM_WAVELETS = [
+    'cdf53', 'cdf97'
+];
+
+// Get a random working wavelet for fallback
+// Prefers library wavelets for maximum reliability, but can fall back to stable custom wavelets
+function getRandomWorkingWavelet(preferLibrary: boolean = true): string {
+    if (preferLibrary && RELIABLE_LIBRARY_WAVELETS.length > 0) {
+        const randomIndex = Math.floor(Math.random() * RELIABLE_LIBRARY_WAVELETS.length);
+        return RELIABLE_LIBRARY_WAVELETS[randomIndex];
+    } else if (RELIABLE_CUSTOM_WAVELETS.length > 0) {
+        const randomIndex = Math.floor(Math.random() * RELIABLE_CUSTOM_WAVELETS.length);
+        return RELIABLE_CUSTOM_WAVELETS[randomIndex];
+    }
+    // Ultimate fallback
+    return 'haar';
+}
+
+// Get wavelet display name for UI (includes ID)
+export function getWaveletDisplayName(id: number): string {
+    if (id === WAVELET_RANDOM) return 'Random (-1)';
+    if (id === WAVELET_NONE) return 'None (0)';
+    
+    const name = getWaveletName(id);
+    // Format: "WaveletName (ID)"
+    const formatted = name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1');
+    return `${formatted} (${id})`;
+}
+
 const getWaveletName = (id: number): string => {
     switch (id) {
         case HAARORTHOGONAL: return "haar";
@@ -119,6 +178,10 @@ const getWaveletName = (id: number): string => {
         case SYMLET18: return "sym18";
         case SYMLET19: return "sym19";
         case SYMLET20: return "sym20";
+        // Legendre wavelets - custom implementation
+        case LEGENDRE1: return "legendre1";
+        case LEGENDRE2: return "legendre2";
+        case LEGENDRE3: return "legendre3";
         case DAUBECHIES2: return "db2";
         case DAUBECHIES3: return "db3";
         case DAUBECHIES4: return "db4";
@@ -138,23 +201,185 @@ const getWaveletName = (id: number): string => {
         case DAUBECHIES18: return "db18";
         case DAUBECHIES19: return "db19";
         case DAUBECHIES20: return "db20";
+        // Battle-Lemarié and CDF wavelets - custom implementation
+        case BATTLE23: return "battle23";
+        case CDF53: return "cdf53";
+        case CDF97: return "cdf97";
         case DISCRETEMAYER: return "dmey";
         case HAAR: return "haar";
-        default: return "haar"; // Fallback
+        default: 
+            // ID 68 is out of range (valid: -1 to 67), treat as invalid
+            if (id === 68) {
+                console.warn(`[WaveletTransform] Wavelet ID 68 is out of range (valid: -1 to 67), falling back to haar`);
+            } else {
+                console.warn(`[WaveletTransform] Unknown wavelet ID: ${id}, falling back to haar`);
+            }
+            return "haar"; // Fallback
     }
+};
+
+// Validate and potentially fix wavelet name
+const validateWavelet = (waveletName: string, originalId: number): string => {
+    if (SUPPORTED_WAVELETS.has(waveletName)) {
+        return waveletName;
+    }
+    // If not supported, log warning and fallback to haar
+    console.warn(`[WaveletTransform] Wavelet "${waveletName}" (ID: ${originalId}) is not supported by discrete-wavelets, falling back to "haar"`);
+    return "haar";
 };
 
 export class WaveletTransform {
     wavelet: string;
     type: number;
+    originalWaveletId: number;
+    private _workingWavelet: string | null = null; // Cached working wavelet after first failure
 
     constructor(type: number, waveletId: number) {
         this.type = type;
-        this.wavelet = getWaveletName(waveletId);
+        this.originalWaveletId = waveletId;
+        const waveletName = getWaveletName(waveletId);
+        this.wavelet = validateWavelet(waveletName, waveletId);
+        
+        // Log if fallback was used
+        if (this.wavelet !== waveletName) {
+            console.warn(`[WaveletTransform] Wavelet ID ${waveletId} mapped to "${this.wavelet}" (original: "${waveletName}")`);
+        }
     }
 
     getName(): string {
-        return `${this.wavelet} (${this.type === TRANSTYPE_FWT ? 'FWT' : 'WPT'})`;
+        const displayWavelet = this._workingWavelet || this.wavelet;
+        return `${displayWavelet} (${this.type === TRANSTYPE_FWT ? 'FWT' : 'WPT'})`;
+    }
+
+    // Get the working wavelet (use cached fallback if available)
+    private getWorkingWavelet(): string {
+        return this._workingWavelet || this.wavelet;
+    }
+
+    // Safe wrapper for dwt with error handling and caching
+    private safeDwt(data: number[], wavelet: string): number[][] {
+        // Use cached working wavelet if available
+        const workingWavelet = this._workingWavelet || wavelet;
+        
+        // Check if this is a custom wavelet
+        if (isCustomWavelet(workingWavelet)) {
+            // Special case: dmey uses db20 as approximation (they're very similar)
+            if (workingWavelet === 'dmey') {
+                try {
+                    return wt.dwt(data, 'db20');
+                } catch (error) {
+                    const fallback = getRandomWorkingWavelet();
+                    console.warn(`[WaveletTransform] dmey approximation (db20) failed, using random fallback: ${fallback}`);
+                    if (this._workingWavelet) {
+                        throw error;
+                    }
+                    this._workingWavelet = fallback;
+                    return wt.dwt(data, fallback);
+                }
+            }
+            
+            const filters = getCustomWaveletFilters(workingWavelet);
+            if (filters) {
+                try {
+                    return customDwt(data, filters);
+                } catch (error) {
+                    const fallback = getRandomWorkingWavelet();
+                    console.error(`[WaveletTransform] Error in custom dwt with wavelet "${workingWavelet}":`, error);
+                    // Fallback to random working wavelet
+                    if (this._workingWavelet) {
+                        throw error;
+                    }
+                    this._workingWavelet = fallback;
+                    return wt.dwt(data, fallback);
+                }
+            }
+        }
+        
+        try {
+            return wt.dwt(data, workingWavelet);
+        } catch (error) {
+            // If we're already using a fallback and it fails, something is seriously wrong
+            if (this._workingWavelet) {
+                console.error(`[WaveletTransform] Even fallback wavelet "${this._workingWavelet}" failed!`, error);
+                throw error;
+            }
+            
+            // First failure: cache a random working fallback
+            // Log this for tracking unsupported wavelets - include original ID for reference
+            const fallback = getRandomWorkingWavelet();
+            console.warn(`[WaveletTransform] Wavelet "${wavelet}" (ID: ${this.originalWaveletId}) failed in discrete-wavelets library. Consider implementing as custom wavelet. Caching random fallback: "${fallback}"`);
+            this._workingWavelet = fallback;
+            
+            try {
+                return wt.dwt(data, fallback);
+            } catch (fallbackError) {
+                console.error(`[WaveletTransform] Even fallback wavelet "${fallback}" failed!`, fallbackError);
+                throw fallbackError;
+            }
+        }
+    }
+
+    // Safe wrapper for idwt with error handling and caching
+    private safeIdwt(cA: number[], cD: number[], wavelet: string): number[] {
+        // Use cached working wavelet if available
+        const workingWavelet = this._workingWavelet || wavelet;
+        
+        // Check if this is a custom wavelet
+        if (isCustomWavelet(workingWavelet)) {
+            // Special case: dmey uses db20 as approximation (they're very similar)
+            if (workingWavelet === 'dmey') {
+                try {
+                    return wt.idwt(cA, cD, 'db20');
+                } catch (error) {
+                    const fallback = getRandomWorkingWavelet();
+                    console.warn(`[WaveletTransform] dmey approximation (db20) failed, using random fallback: ${fallback}`);
+                    if (this._workingWavelet) {
+                        throw error;
+                    }
+                    this._workingWavelet = fallback;
+                    return wt.idwt(cA, cD, fallback);
+                }
+            }
+            
+            const filters = getCustomWaveletFilters(workingWavelet);
+            if (filters) {
+                try {
+                    return customIdwt(cA, cD, filters);
+                } catch (error) {
+                    const fallback = getRandomWorkingWavelet();
+                    console.error(`[WaveletTransform] Error in custom idwt with wavelet "${workingWavelet}":`, error);
+                    // Fallback to random working wavelet
+                    if (this._workingWavelet) {
+                        throw error;
+                    }
+                    this._workingWavelet = fallback;
+                    return wt.idwt(cA, cD, fallback);
+                }
+            }
+        }
+        
+        try {
+            return wt.idwt(cA, cD, workingWavelet);
+        } catch (error) {
+            // If we're already using a fallback and it fails, something is seriously wrong
+            if (this._workingWavelet) {
+                console.error(`[WaveletTransform] Even fallback wavelet "${this._workingWavelet}" failed!`, error);
+                throw error;
+            }
+            
+            // First failure: cache a random working fallback
+            // Log this for tracking unsupported wavelets - include original ID for reference
+            const fallback = getRandomWorkingWavelet();
+            console.warn(`[WaveletTransform] Wavelet "${wavelet}" (ID: ${this.originalWaveletId}) failed in discrete-wavelets library. Consider implementing as custom wavelet. Caching random fallback: "${fallback}"`);
+            this._workingWavelet = fallback;
+            
+            try {
+                return wt.idwt(cA, cD, fallback);
+            } catch (fallbackError) {
+                console.error(`[WaveletTransform] Even fallback wavelet "${fallback}" failed!`, fallbackError);
+                throw fallbackError;
+            }
+        }
     }
 
     forward(data: number[][]): number[][] {
@@ -198,7 +423,7 @@ export class WaveletTransform {
                 // Apply to rows
                 for (let i = 0; i < currSize; i++) {
                     const row = currentData[i].slice(0, currSize);
-                    const coeffs = wt.dwt(row, this.wavelet);
+                    const coeffs = this.safeDwt(row, this.getWorkingWavelet());
                     // coeffs is [cA, cD] (approx, detail)
                     // interleave or concat? JWave usually does [cA | cD]
                     // discrete-wavelets returns [approx, detail] arrays.
@@ -212,7 +437,7 @@ export class WaveletTransform {
                 for (let j = 0; j < currSize; j++) {
                     const col = [];
                     for (let i = 0; i < currSize; i++) col.push(currentData[i][j]);
-                    const coeffs = wt.dwt(col, this.wavelet);
+                    const coeffs = this.safeDwt(col, this.getWorkingWavelet());
                     const colRes = [...coeffs[0], ...coeffs[1]];
                     for (let i = 0; i < currSize; i++) {
                         currentData[i][j] = colRes[i];
@@ -238,7 +463,7 @@ export class WaveletTransform {
         for (let i = 0; i < size; i++) {
             const row = [];
             for (let j = 0; j < size; j++) row.push(data[x + i][y + j]);
-            const coeffs = wt.dwt(row, this.wavelet);
+            const coeffs = this.safeDwt(row, this.getWorkingWavelet());
             const rowRes = [...coeffs[0], ...coeffs[1]];
             for (let j = 0; j < size; j++) data[x + i][y + j] = rowRes[j];
         }
@@ -247,7 +472,7 @@ export class WaveletTransform {
         for (let j = 0; j < size; j++) {
             const col = [];
             for (let i = 0; i < size; i++) col.push(data[x + i][y + j]);
-            const coeffs = wt.dwt(col, this.wavelet);
+            const coeffs = this.safeDwt(col, this.getWorkingWavelet());
             const colRes = [...coeffs[0], ...coeffs[1]];
             for (let i = 0; i < size; i++) data[x + i][y + j] = colRes[i];
         }
@@ -275,7 +500,7 @@ export class WaveletTransform {
                     const half = currSize / 2;
                     const cA = col.slice(0, half);
                     const cD = col.slice(half, currSize);
-                    const rec = wt.idwt(cA, cD, this.wavelet);
+                    const rec = this.safeIdwt(cA, cD, this.getWorkingWavelet());
                     for (let i = 0; i < currSize; i++) currentData[i][j] = rec[i];
                 }
 
@@ -285,7 +510,7 @@ export class WaveletTransform {
                     const half = currSize / 2;
                     const cA = row.slice(0, half);
                     const cD = row.slice(half, currSize);
-                    const rec = wt.idwt(cA, cD, this.wavelet);
+                    const rec = this.safeIdwt(cA, cD, this.getWorkingWavelet());
                     for (let j = 0; j < currSize; j++) currentData[i][j] = rec[j];
                 }
 
@@ -314,7 +539,7 @@ export class WaveletTransform {
             for (let i = 0; i < size; i++) col.push(data[x + i][y + j]);
             const cA = col.slice(0, half);
             const cD = col.slice(half, size);
-            const rec = wt.idwt(cA, cD, this.wavelet);
+            const rec = this.safeIdwt(cA, cD, this.getWorkingWavelet());
             for (let i = 0; i < size; i++) data[x + i][y + j] = rec[i];
         }
 
@@ -324,7 +549,7 @@ export class WaveletTransform {
             for (let j = 0; j < size; j++) row.push(data[x + i][y + j]);
             const cA = row.slice(0, half);
             const cD = row.slice(half, size);
-            const rec = wt.idwt(cA, cD, this.wavelet);
+            const rec = this.safeIdwt(cA, cD, this.getWorkingWavelet());
             for (let j = 0; j < size; j++) data[x + i][y + j] = rec[j];
         }
     }

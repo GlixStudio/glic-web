@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../core/AppContext';
 import { Slider } from './controls/Slider';
 import { Select } from './controls/Select';
 import { COLORSPACES, getColorSpaceName } from '../core/ColorSpaces';
 import { predict_name, MAX_PRED } from '../core/Predictions';
-import { WAVELETNO } from '../core/Transformations';
+import { WAVELETNO, getWaveletDisplayName } from '../core/Transformations';
 import { CodecConfig } from '../core/Codec';
 import { Play, Download, Settings, Layers, Image as ImageIcon, ChevronDown, ChevronUp } from 'lucide-react';
 import presetsData from '../core/presets.json';
@@ -31,6 +31,12 @@ export const Sidebar: React.FC = () => {
   const [animationProgress, setAnimationProgress] = useState<number>(0);
   const [filtersExpanded, setFiltersExpanded] = useState<boolean>(true);
   const [tilesetExpanded, setTilesetExpanded] = useState<boolean>(true);
+  
+  // Use ref to always get the latest config value
+  const configRef = useRef(config);
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
 
   useEffect(() => {
     const saved = localStorage.getItem('glic_custom_presets');
@@ -77,7 +83,7 @@ export const Sidebar: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [originalImage, processedImage, isProcessing, encodedBlob]);
+  }, [originalImage, processedImage, isProcessing, encodedBlob, filters]);
 
   const saveCustomPreset = () => {
     const name = prompt("Enter a name for your preset:");
@@ -170,11 +176,13 @@ export const Sidebar: React.FC = () => {
         }
 
         // transform_method (wavelet) - JSON has the actual wavelet ID value, not index
-        // Clamp to valid range: -1 (RANDOM), 0 (NONE), or 1 to WAVELETNO-1
+        // Clamp to valid range: -1 (RANDOM), 0 (NONE), or 1 to WAVELETNO-1 (67)
         const transVal = getVal(`ch${i}trans`, 0);
-        if (transVal === -1 || (transVal >= 0 && transVal < 68)) {
+        if (transVal === -1 || (transVal >= 0 && transVal < WAVELETNO)) {
             newConfig.transform_method[i] = Math.round(transVal);
         } else {
+            // ID 68 or higher is invalid, fall back to NONE
+            console.warn(`[Preset] Invalid wavelet ID ${transVal} for channel ${i}, using NONE (0)`);
             newConfig.transform_method[i] = 0; // Default to NONE if invalid
         }
         
@@ -227,7 +235,7 @@ export const Sidebar: React.FC = () => {
     worker.postMessage({
       type: 'encode',
       imageData: originalImage,
-      config: config
+      config: configRef.current
     });
   };
 
@@ -280,7 +288,7 @@ export const Sidebar: React.FC = () => {
       worker.postMessage({
         type: 'encode',
         imageData: imageData,
-        config: config
+        config: configRef.current
       });
     };
     img.src = processedImage;
@@ -848,7 +856,7 @@ export const Sidebar: React.FC = () => {
           value={config.transform_method[ch]}
           options={Array.from({ length: WAVELETNO + 2 }).map((_, i) => {
             const val = i - 1; // -1 to WAVELETNO
-            return { label: val === -1 ? 'Random' : (val === 0 ? 'None' : `Wavelet ${val}`), value: val };
+            return { label: getWaveletDisplayName(val), value: val };
           })}
           onChange={(v) => updateConfig(c => c.transform_method[ch] = v)}
         />
@@ -917,9 +925,17 @@ export const Sidebar: React.FC = () => {
           {/* Image Filters Section - Only show when there's a processed image */}
           {processedImage && (
             <div className="border-t border-zinc-800 pt-4">
-              <button
+              <div
                 onClick={() => setFiltersExpanded(!filtersExpanded)}
-                className="w-full flex items-center justify-between mb-3 group"
+                className="w-full flex items-center justify-between mb-3 group cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFiltersExpanded(!filtersExpanded);
+                  }
+                }}
               >
                 <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider group-hover:text-zinc-300 transition-colors">
                   <ImageIcon className="w-3 h-3" /> Image Adjustments
@@ -940,7 +956,7 @@ export const Sidebar: React.FC = () => {
                     <ChevronDown className="w-4 h-4 text-zinc-500" />
                   )}
                 </div>
-              </button>
+              </div>
               {filtersExpanded && (
                 <div className="space-y-2">
                   <Slider

@@ -19,7 +19,7 @@ export class CodecConfig {
     clamp_method: number[] = [0, 0, 0];
 
     transform_type: number[] = [0, 0, 0];
-    transform_method: number[] = [29, 29, 29]; // SYMLET9
+    transform_method: number[] = [-1, -1, -1]; // Random wavelets for all channels
     transform_compress: number[] = [0, 0, 0];
     transform_scale: number[] = [20, 20, 20];
 
