@@ -3,11 +3,8 @@ import { useApp } from '../core/AppContext';
 import { Upload, RefreshCw } from 'lucide-react';
 
 export const CanvasViewer: React.FC = () => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { originalImage, setOriginalImage, processedImage, setProcessedImage, encodedBlob, setEncodedBlob, filters } = useApp();
+  const { originalImage, setOriginalImage, processedImage, setProcessedImage, setEncodedBlob, filters } = useApp();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const changeImageInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
