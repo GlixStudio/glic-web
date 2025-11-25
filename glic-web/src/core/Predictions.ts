@@ -76,7 +76,7 @@ export const predict = (prediction: number, p: Planes, pno: number, s: Segment):
 const createEmptyBlock = (size: number): number[][] => {
     const res = new Array(size);
     for (let i = 0; i < size; i++) res[i] = new Int32Array(size).fill(0);
-    return res as any as number[][]; // Using number[][] for compatibility but underlying is typed array for speed? No, let's stick to number[][] or Int32Array[]
+    return res as unknown as number[][]; // Using number[][] for compatibility but underlying is typed array for speed? No, let's stick to number[][] or Int32Array[]
 };
 
 // Helper to create 2D array

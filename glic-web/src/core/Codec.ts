@@ -246,6 +246,7 @@ export const encode = async (imgData: ImageData, ccfg: CodecConfig): Promise<{ b
 
     writer.writeSeparator(512, 0xff);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const blob = new Blob([writer.getBytes() as any], { type: 'application/octet-stream' });
     const preview = planes.toImageData();
     return { blob, preview };

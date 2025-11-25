@@ -71,7 +71,7 @@ const readSegmentRecursive = (
     let decision = false;
     try {
         decision = segm_in.readBoolean();
-    } catch (e) {
+    } catch {
         decision = false;
     }
 

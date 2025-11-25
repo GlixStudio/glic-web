@@ -189,7 +189,7 @@ export class WaveletTransform {
         // Implementing 2D FWT using 1D DWT
         // For FWT, we decompose LL band recursively.
 
-        let currentData = data.map(row => [...row]); // Clone
+        const currentData = data.map(row => [...row]); // Clone
 
         if (this.type === TRANSTYPE_FWT) {
             // FWT
@@ -261,7 +261,7 @@ export class WaveletTransform {
 
     reverse(data: number[][]): number[][] {
         const size = data.length;
-        let currentData = data.map(row => [...row]); // Clone
+        const currentData = data.map(row => [...row]); // Clone
 
         if (this.type === TRANSTYPE_FWT) {
             // Inverse FWT
