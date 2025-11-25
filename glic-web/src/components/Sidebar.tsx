@@ -6,7 +6,7 @@ import { COLORSPACES, getColorSpaceName } from '../core/ColorSpaces';
 import { predict_name, MAX_PRED } from '../core/Predictions';
 import { WAVELETNO, getWaveletDisplayName } from '../core/Transformations';
 import { CodecConfig } from '../core/Codec';
-import { Play, Download, Settings, Layers, Image as ImageIcon, ChevronDown, ChevronUp } from 'lucide-react';
+import { Play, Download, Settings, Layers, Image as ImageIcon, ChevronDown, ChevronUp, Undo2, Info } from 'lucide-react';
 import presetsData from '../core/presets.json';
 import JSZip from 'jszip';
 import GIF from 'gif.js';
@@ -31,6 +31,8 @@ export const Sidebar: React.FC = () => {
   const [animationProgress, setAnimationProgress] = useState<number>(0);
   const [filtersExpanded, setFiltersExpanded] = useState<boolean>(true);
   const [tilesetExpanded, setTilesetExpanded] = useState<boolean>(true);
+  const [previousProcessedImage, setPreviousProcessedImage] = useState<string | null>(null);
+  const [showAbout, setShowAbout] = useState<boolean>(false);
   
   // Use ref to always get the latest config value
   const configRef = useRef(config);
@@ -77,13 +79,18 @@ export const Sidebar: React.FC = () => {
         } else if (e.key === 'i' || e.key === 'I') {
           e.preventDefault();
           handleImportGlic();
+        } else if (e.key === 'u' || e.key === 'U') {
+          e.preventDefault();
+          if (previousProcessedImage && !isProcessing) {
+            handleUndo();
+          }
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [originalImage, processedImage, isProcessing, encodedBlob, filters]);
+  }, [originalImage, processedImage, isProcessing, encodedBlob, filters, previousProcessedImage]);
 
   const saveCustomPreset = () => {
     const name = prompt("Enter a name for your preset:");
@@ -203,6 +210,10 @@ export const Sidebar: React.FC = () => {
   const handleEncode = () => {
     if (!originalImage) return;
     setIsProcessing(true);
+    // Save current processed image before encoding (for undo)
+    if (processedImage) {
+      setPreviousProcessedImage(processedImage);
+    }
     setEncodedBlob(null); // Clear previous result
     setProcessedImage(null); // Clear previous processed image
     
@@ -242,6 +253,8 @@ export const Sidebar: React.FC = () => {
   const handleReEncode = () => {
     if (!processedImage) return;
     setIsProcessing(true);
+    // Save current processed image before re-encoding (for undo)
+    setPreviousProcessedImage(processedImage);
     setEncodedBlob(null); // Clear previous result
     
     // Convert the processed image URL back to ImageData
@@ -292,6 +305,30 @@ export const Sidebar: React.FC = () => {
       });
     };
     img.src = processedImage;
+  };
+
+  const handleUndo = () => {
+    if (previousProcessedImage) {
+      // Create a new data URL with a timestamp to force canvas reload
+      // This ensures the canvas properly updates even if the image data is similar
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (ctx) {
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(img, 0, 0);
+          // Create a fresh data URL to force canvas update
+          const newDataUrl = canvas.toDataURL('image/png');
+          setProcessedImage(newDataUrl);
+          setPreviousProcessedImage(null); // Clear undo history after undo
+          setEncodedBlob(null); // Clear encoded blob since we're reverting
+        }
+      };
+      img.src = previousProcessedImage;
+    }
   };
 
   const getTimestampedFilename = (prefix: string, extension: string) => {
@@ -1162,6 +1199,18 @@ export const Sidebar: React.FC = () => {
           </button>
         )}
         
+        {processedImage && previousProcessedImage && (
+          <button
+            className="w-full py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700"
+            onClick={handleUndo}
+            title="Undo last encode (U)"
+          >
+            <Undo2 className="w-4 h-4" />
+            <span className="text-sm">UNDO</span>
+            <span className="text-[10px] opacity-60 font-normal">U</span>
+          </button>
+        )}
+        
         <div className="flex gap-2 pt-1 border-t border-zinc-800">
           <button
               className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
@@ -1188,7 +1237,87 @@ export const Sidebar: React.FC = () => {
               <span className="text-[9px] opacity-60 font-normal">I</span>
           </button>
         </div>
+        
+        {/* About Button */}
+        <div className="pt-2 border-t border-zinc-800">
+          <button
+            className="w-full py-2 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 transition-all flex items-center justify-center gap-1.5"
+            onClick={() => setShowAbout(true)}
+            title="About this project"
+          >
+            <Info className="w-3 h-3" />
+            <span>About</span>
+          </button>
+        </div>
+        
+        {/* Copyleft Text */}
+        <div className="pt-2 pb-4 text-center">
+          <p className="text-[10px] text-zinc-600 font-medium">
+            Copyleft Glix Studio 2025
+          </p>
+        </div>
       </div>
+      
+      {/* About Modal */}
+      {showAbout && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setShowAbout(false)}
+        >
+          <div 
+            className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+                <h2 className="text-2xl font-bold text-zinc-100">About GLIC Web</h2>
+                <button
+                  onClick={() => setShowAbout(false)}
+                  className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                >
+                  <span className="text-2xl">×</span>
+                </button>
+              </div>
+              
+              <div className="space-y-4 text-zinc-300 text-sm leading-relaxed">
+                <p>
+                  <strong className="text-zinc-100">GLIC Web</strong> is a web-based port of the GLIC (GLitch Image Codec) image compression and transformation tool.
+                </p>
+                
+                <div>
+                  <h3 className="text-zinc-100 font-bold mb-2">Features:</h3>
+                  <ul className="list-disc list-inside space-y-1 ml-2 text-zinc-400">
+                    <li>Advanced wavelet-based image compression</li>
+                    <li>Multiple color space transformations</li>
+                    <li>Real-time image adjustments (HSL, brightness, contrast)</li>
+                    <li>Tileset generation with animation support</li>
+                    <li>Custom presets and configurations</li>
+                    <li>Support for 68+ different wavelets</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h3 className="text-zinc-100 font-bold mb-2">Technical Details:</h3>
+                  <ul className="list-disc list-inside space-y-1 ml-2 text-zinc-400">
+                    <li>Built with React, TypeScript, and Vite</li>
+                    <li>Uses Web Workers for heavy processing</li>
+                    <li>Implements custom wavelet transforms for unsupported wavelets</li>
+                    <li>Pixel-perfect rendering with no image smoothing</li>
+                  </ul>
+                </div>
+                
+                <div className="pt-4 border-t border-zinc-800">
+                  <p className="text-zinc-400 text-xs">
+                    <strong className="text-zinc-300">Copyleft Glix Studio 2025</strong>
+                    <br />
+                    This software is free and open source. Use, modify, and distribute freely.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
