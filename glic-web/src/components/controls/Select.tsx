@@ -16,9 +16,15 @@ export const Select: React.FC<SelectProps> = ({ label, value, options, onChange 
             value={value}
             onChange={(e) => {
                 const val = e.target.value;
-                // Try to parse as number if original value was number
-                const num = parseFloat(val);
-                onChange(isNaN(num) ? val : num);
+                // Try to parse as number only if original value was a number type
+                // This prevents string values that start with numbers from being converted
+                if (typeof value === 'number') {
+                    const num = parseFloat(val);
+                    onChange(isNaN(num) ? val : num);
+                } else {
+                    // For string values, always pass as string
+                    onChange(val);
+                }
             }}
             className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 appearance-none transition-all hover:border-zinc-600"
         >

@@ -136,7 +136,7 @@ export function getWaveletDisplayName(id: number): string {
     return `${formatted} (${id})`;
 }
 
-const getWaveletName = (id: number): string => {
+export const getWaveletName = (id: number): string => {
     switch (id) {
         case HAARORTHOGONAL: return "haar";
         case BIORTHOGONAL11: return "bior1.1";
@@ -295,19 +295,45 @@ export class WaveletTransform {
             }
         }
         
+        // Try library implementation first
         try {
             return wt.dwt(data, workingWavelet);
         } catch (error) {
+            // If library fails, check if we have a custom implementation available
+            if (!this._workingWavelet && isCustomWavelet(workingWavelet)) {
+                // This shouldn't happen as we check above, but just in case
+                const filters = getCustomWaveletFilters(workingWavelet);
+                if (filters) {
+                    try {
+                        console.warn(`[WaveletTransform] Library failed for "${wavelet}", using custom implementation`);
+                        return customDwt(data, filters);
+                    } catch (customError) {
+                        // Custom also failed, continue to fallback
+                    }
+                }
+            }
+            
             // If we're already using a fallback and it fails, something is seriously wrong
             if (this._workingWavelet) {
                 console.error(`[WaveletTransform] Even fallback wavelet "${this._workingWavelet}" failed!`, error);
                 throw error;
             }
             
-            // First failure: cache a random working fallback
-            // Log this for tracking unsupported wavelets - include original ID for reference
+            // First failure: check if custom implementation exists for this wavelet
+            const customFilters = getCustomWaveletFilters(workingWavelet);
+            if (customFilters) {
+                try {
+                    console.warn(`[WaveletTransform] Library failed for "${wavelet}" (ID: ${this.originalWaveletId}), using custom implementation`);
+                    this._workingWavelet = workingWavelet; // Mark as using custom
+                    return customDwt(data, customFilters);
+                } catch (customError) {
+                    console.error(`[WaveletTransform] Custom implementation also failed for "${wavelet}":`, customError);
+                }
+            }
+            
+            // No custom implementation available, use random fallback
             const fallback = getRandomWorkingWavelet();
-            console.warn(`[WaveletTransform] Wavelet "${wavelet}" (ID: ${this.originalWaveletId}) failed in discrete-wavelets library. Consider implementing as custom wavelet. Caching random fallback: "${fallback}"`);
+            console.warn(`[WaveletTransform] Wavelet "${wavelet}" (ID: ${this.originalWaveletId}) failed in discrete-wavelets library. No custom implementation available. Caching random fallback: "${fallback}"`);
             this._workingWavelet = fallback;
             
             try {
@@ -358,19 +384,45 @@ export class WaveletTransform {
             }
         }
         
+        // Try library implementation first
         try {
             return wt.idwt(cA, cD, workingWavelet);
         } catch (error) {
+            // If library fails, check if we have a custom implementation available
+            if (!this._workingWavelet && isCustomWavelet(workingWavelet)) {
+                // This shouldn't happen as we check above, but just in case
+                const filters = getCustomWaveletFilters(workingWavelet);
+                if (filters) {
+                    try {
+                        console.warn(`[WaveletTransform] Library failed for "${wavelet}", using custom implementation`);
+                        return customIdwt(cA, cD, filters);
+                    } catch (customError) {
+                        // Custom also failed, continue to fallback
+                    }
+                }
+            }
+            
             // If we're already using a fallback and it fails, something is seriously wrong
             if (this._workingWavelet) {
                 console.error(`[WaveletTransform] Even fallback wavelet "${this._workingWavelet}" failed!`, error);
                 throw error;
             }
             
-            // First failure: cache a random working fallback
-            // Log this for tracking unsupported wavelets - include original ID for reference
+            // First failure: check if custom implementation exists for this wavelet
+            const customFilters = getCustomWaveletFilters(workingWavelet);
+            if (customFilters) {
+                try {
+                    console.warn(`[WaveletTransform] Library failed for "${wavelet}" (ID: ${this.originalWaveletId}), using custom implementation`);
+                    this._workingWavelet = workingWavelet; // Mark as using custom
+                    return customIdwt(cA, cD, customFilters);
+                } catch (customError) {
+                    console.error(`[WaveletTransform] Custom implementation also failed for "${wavelet}":`, customError);
+                }
+            }
+            
+            // No custom implementation available, use random fallback
             const fallback = getRandomWorkingWavelet();
-            console.warn(`[WaveletTransform] Wavelet "${wavelet}" (ID: ${this.originalWaveletId}) failed in discrete-wavelets library. Consider implementing as custom wavelet. Caching random fallback: "${fallback}"`);
+            console.warn(`[WaveletTransform] Wavelet "${wavelet}" (ID: ${this.originalWaveletId}) failed in discrete-wavelets library. No custom implementation available. Caching random fallback: "${fallback}"`);
             this._workingWavelet = fallback;
             
             try {

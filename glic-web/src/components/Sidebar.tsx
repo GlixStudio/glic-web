@@ -90,7 +90,7 @@ export const Sidebar: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [originalImage, processedImage, isProcessing, encodedBlob, filters, previousProcessedImage]);
+  }, [originalImage, processedImage, isProcessing, encodedBlob, previousProcessedImage]);
 
   const saveCustomPreset = () => {
     const name = prompt("Enter a name for your preset:");
@@ -891,8 +891,8 @@ export const Sidebar: React.FC = () => {
         <Select
           label="Wavelet"
           value={config.transform_method[ch]}
-          options={Array.from({ length: WAVELETNO + 2 }).map((_, i) => {
-            const val = i - 1; // -1 to WAVELETNO
+          options={Array.from({ length: WAVELETNO + 1 }).map((_, i) => {
+            const val = i - 1; // -1 to WAVELETNO - 1 (67)
             return { label: getWaveletDisplayName(val), value: val };
           })}
           onChange={(v) => updateConfig(c => c.transform_method[ch] = v)}
