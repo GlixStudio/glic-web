@@ -1281,7 +1281,7 @@ export const Sidebar: React.FC = () => {
               
               <div className="space-y-4 text-zinc-300 text-sm leading-relaxed">
                 <p>
-                  <strong className="text-zinc-100">GLIC Web</strong> is a web-based port of the GLIC (GLitch Image Codec) image compression and transformation tool.
+                  <strong className="text-zinc-100">GLIC Web</strong> is a web-based vibe coded port of the GLIC (GLitch Image Codec) image compression and transformation tool. <strong className="text-zinc-100">GLIC</strong> has been a huge inspiration for GLIX's aesthetics and design approach. Thus we wanted to port it to web (originally it is a Processing program), and share it with the world. 
                 </p>
                 
                 <div>
@@ -1292,18 +1292,17 @@ export const Sidebar: React.FC = () => {
                     <li>Real-time image adjustments (HSL, brightness, contrast)</li>
                     <li>Tileset generation with animation support</li>
                     <li>Custom presets and configurations</li>
-                    <li>Support for 68+ different wavelets</li>
+                    <li>Support for 68+ different wavelets (all might not operate well, we are working on it)</li>
                   </ul>
                 </div>
                 
                 <div>
-                  <h3 className="text-zinc-100 font-bold mb-2">Technical Details:</h3>
-                  <ul className="list-disc list-inside space-y-1 ml-2 text-zinc-400">
-                    <li>Built with React, TypeScript, and Vite</li>
-                    <li>Uses Web Workers for heavy processing</li>
-                    <li>Implements custom wavelet transforms for unsupported wavelets</li>
-                    <li>Pixel-perfect rendering with no image smoothing</li>
-                  </ul>
+                    <p>GLIC Source code:</p>
+                    <a href="https://github.com/GlitchCodec/GLIC" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">https://github.com/GlitchCodec/GLIC</a>
+                    <p>GLIC-web Source code:</p>
+                    <a href="https://github.com/GlitchCodec/GLIC" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">https://github.com/GlitchCodec/GLIC</a>
+                    <p>Vibe coded by <a href="https://glix.studio" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">Glix Studio</a></p>
+                    <p><a href="https://glix.shop" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">Glix Shop</a></p>
                 </div>
                 
                 <div className="pt-4 border-t border-zinc-800">
