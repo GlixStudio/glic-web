@@ -6,7 +6,59 @@ export const CanvasViewer: React.FC = () => {
   const { originalImage, setOriginalImage, processedImage, setProcessedImage, setEncodedBlob, filters } = useApp();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const changeImageInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [displaySize, setDisplaySize] = useState<{ width: number; height: number } | null>(null);
+
+  // Calculate display size to fit container while maintaining aspect ratio
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) {
+      // Defer state update to avoid synchronous setState in effect
+      requestAnimationFrame(() => {
+        if (!originalImage && !processedImage) {
+          setDisplaySize(null);
+        }
+      });
+      return;
+    }
+
+    const updateDisplaySize = () => {
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      
+      if (canvas.width > 0 && canvas.height > 0 && (originalImage || processedImage)) {
+        const aspectRatio = canvas.width / canvas.height;
+        const containerAspectRatio = containerWidth / containerHeight;
+        
+        let displayWidth: number;
+        let displayHeight: number;
+        
+        if (aspectRatio > containerAspectRatio) {
+          // Image is wider - fit to width
+          displayWidth = containerWidth;
+          displayHeight = containerWidth / aspectRatio;
+        } else {
+          // Image is taller - fit to height
+          displayHeight = containerHeight;
+          displayWidth = containerHeight * aspectRatio;
+        }
+        
+        setDisplaySize({ width: displayWidth, height: displayHeight });
+      } else {
+        setDisplaySize(null);
+      }
+    };
+
+    // Defer initial update to avoid synchronous setState
+    requestAnimationFrame(updateDisplaySize);
+    
+    const resizeObserver = new ResizeObserver(updateDisplaySize);
+    resizeObserver.observe(container);
+    
+    return () => resizeObserver.disconnect();
+  }, [originalImage, processedImage]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -107,13 +159,19 @@ export const CanvasViewer: React.FC = () => {
           </label>
         </div>
       )}
-      <div className="relative max-w-[95%] max-h-[95%] overflow-hidden shadow-2xl shadow-black/50">
+      <div 
+        ref={containerRef}
+        className="relative w-[95%] h-[95%] flex items-center justify-center shadow-2xl shadow-black/50"
+      >
         <canvas 
           ref={canvasRef} 
-          className="max-w-full max-h-full object-contain"
           style={{ 
             display: (originalImage || processedImage) ? 'block' : 'none',
             imageRendering: 'pixelated',
+            width: displaySize ? `${displaySize.width}px` : 'auto',
+            height: displaySize ? `${displaySize.height}px` : 'auto',
+            maxWidth: '100%',
+            maxHeight: '100%',
             filter: processedImage ? `hue-rotate(${filters.hue}deg) saturate(${filters.saturation}%) brightness(${filters.brightness}%) contrast(${filters.contrast}%)` : 'none'
           }}
         />

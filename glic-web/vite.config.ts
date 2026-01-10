@@ -9,20 +9,20 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['favicon.png'],
       manifest: {
-        name: 'GLIC Web',
-        short_name: 'GLIC',
-        description: 'Glitch Image Codec Web Port',
+        name: 'GLIX Encoder',
+        short_name: 'GLIX',
+        description: 'Glitch Image Codec',
         theme_color: '#ffffff',
         icons: [
           {
-            src: 'pwa-192x192.png',
+            src: 'favicon.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'favicon.png',
             sizes: '512x512',
             type: 'image/png'
           }
