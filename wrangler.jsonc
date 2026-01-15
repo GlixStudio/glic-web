@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "glic-web",
+  "name": "glic-port",
   "compatibility_date": "2025-04-03",
   "assets": {
     "directory": "dist",
@@ -11,8 +11,5 @@
       "pattern": "encoder.glix.studio",
       "custom_domain": true
     }
-  ],
-  "vars": {
-    "NODE_ENV": "development"
-  }
+  ]
 }
