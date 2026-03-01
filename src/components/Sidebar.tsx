@@ -1298,16 +1298,16 @@ export const Sidebar: React.FC = () => {
                 
                 <div>
                     <p>GLIC Source code:</p>
-                    <a href="https://github.com/GlitchCodec/GLIC" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">https://github.com/GlitchCodec/GLIC</a>
+                    <a href="https://github.com/GlixStudio/glic-web" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">https://github.com/GlitchCodec/GLIC</a>
                     <p>GLIC-web Source code:</p>
-                    <a href="https://github.com/GlitchCodec/GLIC" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">https://github.com/GlitchCodec/GLIC</a>
-                    <p>Vibe coded by <a href="https://glix.studio" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">Glix Studio</a></p>
+                    <a href="https://github.com/GlixStudio/glic-web" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">https://github.com/GlixStudio/glic-web</a>
+                    <p>Vibe coded by <a href="https://home.glix.studio" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">Glix Studio</a></p>
                     <p><a href="https://glix.shop" className="text-zinc-300 underline" target="_blank" rel="noopener noreferrer">Glix Shop</a></p>
                 </div>
                 
                 <div className="pt-4 border-t border-zinc-800">
                   <p className="text-zinc-400 text-xs">
-                    <strong className="text-zinc-300">Copyleft Glix Studio 2025</strong>
+                    <strong className="text-zinc-300">Copyleft Glix Studio {new Date().getFullYear()}</strong>
                     <br />
                     This software is free and open source. Use, modify, and distribute freely.
                   </p>
