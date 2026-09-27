@@ -18,8 +18,8 @@ export const Toggle: React.FC<ToggleProps> = ({ label, checked, onChange, title 
             className={`relative w-9 h-5 rounded-full transition-colors ${checked ? 'bg-blue-600' : 'bg-zinc-700'}`}
         >
             <span
-                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                    checked ? 'translate-x-4' : 'translate-x-0.5'
+                className={`absolute left-0 top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                    checked ? 'translate-x-[1.125rem]' : 'translate-x-0.5'
                 }`}
             />
         </button>
