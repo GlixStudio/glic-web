@@ -1,6 +1,7 @@
 import React from 'react';
 import { type CombineMode, type SelectionTool, type ToolOptions } from '../core/selection';
-import { Hand, SquareDashed, CircleDashed, Lasso, Wand2, Paintbrush, Plus, Minus, Square, XCircle, RotateCcw, Blend } from 'lucide-react';
+import { useRef } from 'react';
+import { Hand, SquareDashed, CircleDashed, Lasso, Wand2, Paintbrush, Plus, Minus, Square, XCircle, RotateCcw, Blend, FileUp, FileDown } from 'lucide-react';
 
 interface ToolDef {
     id: SelectionTool;
@@ -37,6 +38,8 @@ interface Props {
     onInvert: () => void;
     onReselect: () => void;
     onApplyFeather: () => void;
+    onImportMask: (file: File) => void;
+    onExportMask: () => void;
 }
 
 export const SelectionToolbar: React.FC<Props> = ({
@@ -52,8 +55,11 @@ export const SelectionToolbar: React.FC<Props> = ({
     onInvert,
     onReselect,
     onApplyFeather,
+    onImportMask,
+    onExportMask,
 }) => {
     const showOptions = tool !== 'move';
+    const maskInputRef = useRef<HTMLInputElement>(null);
 
     return (
         <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex items-start gap-2">
@@ -186,6 +192,35 @@ export const SelectionToolbar: React.FC<Props> = ({
                     >
                         <Blend className="w-3 h-3" /> Feather selection
                     </button>
+
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-zinc-800">
+                        <button
+                            onClick={() => maskInputRef.current?.click()}
+                            className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors flex items-center justify-center gap-1"
+                            title="Load a grayscale image as the selection mask (white = selected; resized to fit)"
+                        >
+                            <FileUp className="w-3 h-3" /> Mask in
+                        </button>
+                        <button
+                            onClick={onExportMask}
+                            disabled={!hasSelection}
+                            className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
+                            title="Save the selection mask as a grayscale PNG"
+                        >
+                            <FileDown className="w-3 h-3" /> Mask out
+                        </button>
+                        <input
+                            ref={maskInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (f) onImportMask(f);
+                                e.target.value = '';
+                            }}
+                        />
+                    </div>
 
                     {coveragePct !== null && (
                         <p className="text-[10px] text-zinc-500 text-center">selection covers {coveragePct}%</p>

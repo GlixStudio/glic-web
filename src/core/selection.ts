@@ -278,6 +278,35 @@ export const compositeWithMask = (source: ImageData, glitched: ImageData, mask: 
 };
 
 /**
+ * Reads an image as a selection mask: Rec.709 luma scaled by alpha
+ * (white = fully selected, black or transparent = unselected).
+ * The image must already match the target dimensions.
+ */
+export const luminanceMask = (img: ImageData): Mask => {
+    const n = img.width * img.height;
+    const mask = new Uint8ClampedArray(n);
+    const d = img.data;
+    for (let i = 0; i < n; i++) {
+        const o = i * 4;
+        mask[i] = Math.round(
+            (0.2126 * d[o] + 0.7152 * d[o + 1] + 0.0722 * d[o + 2]) * (d[o + 3] / 255)
+        );
+    }
+    return mask;
+};
+
+/** Renders a mask as an opaque grayscale image (white = selected). */
+export const maskToImageData = (mask: Mask, w: number, h: number): ImageData => {
+    const out = new Uint8ClampedArray(mask.length * 4);
+    for (let i = 0; i < mask.length; i++) {
+        const o = i * 4;
+        out[o] = out[o + 1] = out[o + 2] = mask[i];
+        out[o + 3] = 255;
+    }
+    return new ImageData(out, w, h);
+};
+
+/**
  * Translucent tint + edge highlight for the viewer overlay. An optional region
  * limits the output to [x0,x1)x[y0,y1) for cheap partial updates (edge tests
  * still sample the full mask).

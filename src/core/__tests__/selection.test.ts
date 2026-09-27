@@ -12,6 +12,8 @@ import {
     feather,
     compositeWithMask,
     maskOverlay,
+    luminanceMask,
+    maskToImageData,
     newMask,
 } from '../selection';
 
@@ -156,6 +158,30 @@ describe('compositeWithMask', () => {
         const out = compositeWithMask(src, gli, mask);
         expect(Array.from(out.data.slice(0, 4))).toEqual([200, 100, 50, 255]); // selected
         expect(Array.from(out.data.slice(4, 8))).toEqual([0, 0, 0, 255]); // untouched
+    });
+});
+
+describe('mask import/export helpers', () => {
+    it('luminanceMask maps white/black/alpha correctly', () => {
+        const d = new Uint8ClampedArray([
+            255, 255, 255, 255, // white -> 255
+            0, 0, 0, 255, // black -> 0
+            255, 255, 255, 0, // transparent white -> 0
+            255, 255, 255, 128, // half-transparent white -> ~128
+        ]);
+        const m = luminanceMask(new ImageData(d, 4, 1));
+        expect(m[0]).toBe(255);
+        expect(m[1]).toBe(0);
+        expect(m[2]).toBe(0);
+        expect(Math.abs(m[3] - 128)).toBeLessThanOrEqual(1);
+    });
+
+    it('maskToImageData -> luminanceMask round-trips exactly', () => {
+        const m = feather(rectMask(16, 16, 4, 4, 12, 12), 16, 16, 4);
+        const back = luminanceMask(maskToImageData(m, 16, 16));
+        for (let i = 0; i < m.length; i++) {
+            expect(Math.abs(back[i] - m[i]), `idx ${i}`).toBeLessThanOrEqual(1);
+        }
     });
 });
 

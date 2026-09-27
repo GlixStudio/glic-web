@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../core/AppContext';
 import { filtersToCss } from '../core/filters';
 import { visualizeSegmentation } from '../core/visualize';
-import { fileToImageData } from '../core/imageio';
+import { fileToImageData, imageDataToCanvas, canvasToPngBlob, downloadBlob, timestampedFilename } from '../core/imageio';
 import {
     rectMask,
     ellipseMask,
@@ -15,6 +15,8 @@ import {
     feather,
     coverage,
     maskOverlay,
+    luminanceMask,
+    maskToImageData,
     DEFAULT_TOOL_OPTIONS,
     type CombineMode,
     type Mask,
@@ -200,6 +202,40 @@ export const CanvasViewer: React.FC = () => {
             setSelection(feather(selection, imgW, imgH, toolOptions.feather));
         }
     }, [selection, toolOptions.feather, imgW, imgH, setSelection]);
+
+    const importMask = useCallback(
+        async (file: File) => {
+            if (!imgW) return;
+            try {
+                let img = await fileToImageData(file);
+                if (img.width !== imgW || img.height !== imgH) {
+                    const scaled = document.createElement('canvas');
+                    scaled.width = imgW;
+                    scaled.height = imgH;
+                    const ctx = scaled.getContext('2d')!;
+                    ctx.drawImage(imageDataToCanvas(img), 0, 0, imgW, imgH);
+                    img = ctx.getImageData(0, 0, imgW, imgH);
+                    toast('info', `Mask resized ${file.name}: ${imgW}×${imgH}`);
+                }
+                const mask = luminanceMask(img);
+                setSelection(mask);
+                toast('success', 'Mask imported (white = selected)');
+            } catch {
+                toast('error', 'Could not read mask image');
+            }
+        },
+        [imgW, imgH, setSelection, toast]
+    );
+
+    const exportMask = useCallback(async () => {
+        if (!selection || !imgW) return;
+        try {
+            const canvas = imageDataToCanvas(maskToImageData(selection, imgW, imgH));
+            downloadBlob(await canvasToPngBlob(canvas), timestampedFilename('glic-mask', 'png'));
+        } catch (e) {
+            toast('error', `Mask export failed: ${(e as Error).message}`);
+        }
+    }, [selection, imgW, imgH, toast]);
 
     const coveragePct = useMemo(
         () => (selection ? Math.round(coverage(selection) * 100) : null),
@@ -559,6 +595,8 @@ export const CanvasViewer: React.FC = () => {
                         onInvert={invertSelection}
                         onReselect={reselect}
                         onApplyFeather={applyFeatherNow}
+                        onImportMask={importMask}
+                        onExportMask={exportMask}
                     />
 
                     {/* toolbar */}
