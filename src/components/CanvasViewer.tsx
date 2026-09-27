@@ -24,6 +24,7 @@ import {
     type ToolOptions,
 } from '../core/selection';
 import { SelectionToolbar } from './SelectionToolbar';
+import { VIEW_EVENT, type ViewCommand } from '../core/viewBus';
 import { HELP } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
 import { LayersPanel } from './LayersPanel';
@@ -434,6 +435,21 @@ export const CanvasViewer: React.FC = () => {
             ctx.stroke();
         }
     }, [draftTick, tool, toolOptions.brushSize, scale]);
+
+    // menu bar view commands (zoom state lives here)
+    useEffect(() => {
+        const handler = (e: Event) => {
+            switch ((e as CustomEvent<ViewCommand>).detail) {
+                case 'zoom-in': setZoomClamped((zoom ?? fitScale) * 1.2); break;
+                case 'zoom-out': setZoomClamped((zoom ?? fitScale) / 1.2); break;
+                case 'fit': setZoomClamped(null); break;
+                case 'actual': setZoomClamped(1); break;
+                case 'toggle-segmentation': setShowSegmentation(s => !s); break;
+            }
+        };
+        window.addEventListener(VIEW_EVENT, handler);
+        return () => window.removeEventListener(VIEW_EVENT, handler);
+    }, [zoom, fitScale, setZoomClamped]);
 
     // keyboard: tools + selection commands + compare/fit + space-pan
     useEffect(() => {

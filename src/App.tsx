@@ -5,6 +5,7 @@ import { CanvasViewer } from './components/CanvasViewer';
 import { Toasts } from './components/Toasts';
 import { Tour } from './components/Tour';
 import { AboutModal } from './components/AboutModal';
+import { MenuBar } from './components/MenuBar';
 import { PanelLeft, CircleHelp } from 'lucide-react';
 
 function App() {
@@ -31,7 +32,8 @@ function App() {
                             <div className="bg-cream-2" />
                         </div>
                         <h1 className="text-[15px] font-black tracking-tight">GLIC Web</h1>
-                        <span className="text-[11px] text-ink-2 hidden sm:inline">GLitch Image Codec</span>
+                        <div className="w-px h-5 bg-line mx-1" />
+                        <MenuBar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(o => !o)} />
                     </div>
                     <button
                         onClick={() => setShowAbout(true)}
