@@ -506,8 +506,8 @@ export const CanvasViewer: React.FC = () => {
 
     return (
         <div
-            className={`w-full h-full flex items-center justify-center relative bg-zinc-900/50 overflow-hidden ${
-                isDragging ? 'bg-blue-500/10' : ''
+            className={`w-full h-full flex items-center justify-center relative bg-stage overflow-hidden ${
+                isDragging ? 'bg-glx-orange/15' : ''
             }`}
             onDragOver={e => {
                 e.preventDefault();
@@ -519,18 +519,16 @@ export const CanvasViewer: React.FC = () => {
             {!displayed ? (
                 <div
                     data-tour="dropzone"
-                    className={`text-center p-12 border-2 border-dashed rounded-2xl flex flex-col items-center gap-6 transition-all ${
-                        isDragging
-                            ? 'border-blue-500 bg-blue-500/5'
-                            : 'border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800/50'
+                    className={`text-center p-12 bg-cream border-2 border-dashed rounded-2xl flex flex-col items-center gap-6 transition-all shadow-2xl shadow-black/40 ${
+                        isDragging ? 'border-glx-orange bg-cream-2' : 'border-ink hover:bg-cream-2'
                     }`}
                 >
-                    <div className="p-4 bg-zinc-800 rounded-full">
-                        <Upload className={`w-8 h-8 ${isDragging ? 'text-blue-500' : 'text-zinc-400'}`} />
+                    <div className="p-4 bg-cream-3 rounded-full">
+                        <Upload className={`w-8 h-8 ${isDragging ? 'text-glx-orange' : 'text-ink'}`} />
                     </div>
                     <div className="space-y-2">
-                        <h3 className="text-lg font-bold text-zinc-200">Drop an image or a .glic file</h3>
-                        <p className="text-zinc-500 text-sm">Drag & drop, or click to browse</p>
+                        <h3 className="text-lg font-bold text-ink">Drop an image or a .glic file</h3>
+                        <p className="text-ink-2 text-sm">Drag & drop, or click to browse</p>
                     </div>
                     <input
                         type="file"
@@ -545,7 +543,7 @@ export const CanvasViewer: React.FC = () => {
                     />
                     <label
                         htmlFor="file-upload"
-                        className="px-6 py-2.5 bg-zinc-100 text-zinc-900 font-bold rounded-lg hover:bg-white cursor-pointer transition-colors shadow-lg shadow-zinc-900/20"
+                        className="px-6 py-2.5 bg-glx-green text-ink border border-ink font-bold rounded-lg hover:brightness-105 cursor-pointer transition-colors shadow-[2px_2px_0_0_rgba(22,21,15,0.9)]"
                     >
                         Select file
                     </label>
@@ -615,31 +613,31 @@ export const CanvasViewer: React.FC = () => {
                         onPointerUp={e => e.stopPropagation()}
                     >
                         <Tooltip help={HELP.zoomControls}>
-                        <div className="flex items-center bg-zinc-900/90 border border-zinc-700 rounded-lg backdrop-blur-sm overflow-hidden">
+                        <div className="flex items-center bg-cream-2 border border-ink rounded-lg backdrop-blur-sm overflow-hidden">
                             <button
                                 onClick={() => setZoomClamped((zoom ?? fitScale) / 1.2)}
-                                className="p-2 text-zinc-300 hover:bg-zinc-800 transition-colors"
+                                className="p-2 text-ink hover:bg-white transition-colors"
                                 title="Zoom out"
                             >
                                 <ZoomOut className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={() => setZoomClamped(zoom === null ? 1 : null)}
-                                className="px-2 py-2 text-xs font-mono text-zinc-300 hover:bg-zinc-800 transition-colors min-w-[3.5rem]"
+                                className="px-2 py-2 text-xs font-mono text-ink hover:bg-white transition-colors min-w-[3.5rem]"
                                 title="Toggle fit / 100% (F)"
                             >
                                 {Math.round(scale * 100)}%
                             </button>
                             <button
                                 onClick={() => setZoomClamped((zoom ?? fitScale) * 1.2)}
-                                className="p-2 text-zinc-300 hover:bg-zinc-800 transition-colors"
+                                className="p-2 text-ink hover:bg-white transition-colors"
                                 title="Zoom in"
                             >
                                 <ZoomIn className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={() => setZoomClamped(null)}
-                                className="p-2 text-zinc-300 hover:bg-zinc-800 transition-colors border-l border-zinc-700"
+                                className="p-2 text-ink hover:bg-white transition-colors border-l border-ink"
                                 title="Fit to window"
                             >
                                 <Maximize className="w-4 h-4" />
@@ -658,8 +656,8 @@ export const CanvasViewer: React.FC = () => {
                                 onPointerLeave={() => setComparing(false)}
                                 className={`p-2 rounded-lg border backdrop-blur-sm transition-colors ${
                                     comparing
-                                        ? 'bg-blue-600 border-blue-500 text-white'
-                                        : 'bg-zinc-900/90 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+                                        ? 'bg-glx-orange border-ink text-ink'
+                                        : 'bg-cream-2 border-ink text-ink hover:bg-white'
                                 }`}
                             >
                                 <Eye className="w-4 h-4" />
@@ -673,8 +671,8 @@ export const CanvasViewer: React.FC = () => {
                                 onClick={() => setShowSegmentation(s => !s)}
                                 className={`p-2 rounded-lg border backdrop-blur-sm transition-colors ${
                                     showSegmentation
-                                        ? 'bg-blue-600 border-blue-500 text-white'
-                                        : 'bg-zinc-900/90 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+                                        ? 'bg-glx-orange border-ink text-ink'
+                                        : 'bg-cream-2 border-ink text-ink hover:bg-white'
                                 }`}
                             >
                                 <Grid3x3 className="w-4 h-4" />
@@ -685,7 +683,7 @@ export const CanvasViewer: React.FC = () => {
                         <Tooltip help={HELP.changeImage}>
                         <button
                             onClick={() => changeImageInputRef.current?.click()}
-                            className="p-2 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 rounded-lg border border-zinc-700 backdrop-blur-sm transition-colors"
+                            className="p-2 bg-cream-2 hover:bg-white text-ink rounded-lg border border-ink backdrop-blur-sm transition-colors"
                         >
                             <RefreshCw className="w-4 h-4" />
                         </button>
@@ -704,12 +702,17 @@ export const CanvasViewer: React.FC = () => {
                     </div>
 
                     {/* status line */}
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-zinc-900/80 border border-zinc-800 rounded-full text-[11px] text-zinc-400 backdrop-blur-sm pointer-events-none">
-                        {comparing ? 'source' : showSegmentation ? 'segmentation' : processed ? 'processed' : 'source'} ·{' '}
-                        {imgW}×{imgH}
-                        {coveragePct !== null && ` · selection ${coveragePct}%`}
-                        {layers.length > 0 &&
-                            ` · ${layers.find(l => l.id === activeLayerId)?.name ?? ''} (${layers.length})`}
+                    <div className="absolute bottom-3 left-3 flex items-center gap-1.5 pointer-events-none">
+                        <span className="px-2.5 py-1 bg-cream-2 border border-ink rounded-md text-[11px] font-medium text-ink">
+                            {imgW} × {imgH} ·{' '}
+                            {comparing ? 'source' : showSegmentation ? 'segmentation' : processed ? 'processed' : 'source'}
+                            {coveragePct !== null && ` · selection ${coveragePct}%`}
+                            {layers.length > 0 &&
+                                ` · ${layers.find(l => l.id === activeLayerId)?.name ?? ''} (${layers.length})`}
+                        </span>
+                        <span className="px-2 py-1 bg-glx-green border border-ink rounded-md text-[10px] font-bold text-ink">
+                            3× WORKERS
+                        </span>
                     </div>
                 </div>
             )}

@@ -135,7 +135,7 @@ export const Tour: React.FC = () => {
         <div className="fixed inset-0 z-[90]" role="dialog" aria-label="Guided tour">
             {/* spotlight: the shadow dims everything except the target */}
             <div
-                className="absolute rounded-xl border-2 border-blue-500 transition-all duration-200 pointer-events-none"
+                className="absolute rounded-xl border-2 border-glx-orange transition-all duration-200 pointer-events-none"
                 style={{
                     left: rect.left - pad,
                     top: rect.top - pad,
@@ -148,33 +148,33 @@ export const Tour: React.FC = () => {
             <div className="absolute inset-0" onClick={close} />
 
             <div
-                className="absolute w-[300px] bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl shadow-black/60 p-4"
+                className="absolute w-[300px] bg-cream-2 border border-ink rounded-xl shadow-2xl shadow-black/60 p-4"
                 style={{ left: popLeft, top: popTop, bottom: popBottom }}
                 onClick={e => e.stopPropagation()}
             >
                 <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <h3 className="text-sm font-bold text-zinc-100">{step.title}</h3>
-                    <button onClick={close} className="text-zinc-500 hover:text-zinc-300 flex-shrink-0" title="Close tour">
+                    <h3 className="text-sm font-bold text-ink">{step.title}</h3>
+                    <button onClick={close} className="text-ink-2 hover:text-ink flex-shrink-0" title="Close tour">
                         <X className="w-4 h-4" />
                     </button>
                 </div>
-                <p className="text-xs leading-relaxed text-zinc-400 mb-3">{step.body}</p>
+                <p className="text-xs leading-relaxed text-ink-2 mb-3">{step.body}</p>
                 <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-zinc-500 font-mono">
+                    <span className="text-[10px] text-ink-2 font-mono">
                         {index + 1} / {total}
                     </span>
                     <div className="flex gap-1.5">
                         {index > 0 && (
                             <button
                                 onClick={() => goTo(index - 1)}
-                                className="px-2.5 py-1 text-[11px] rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
+                                className="px-2.5 py-1 text-[11px] rounded-md bg-cream-3 hover:bg-white text-ink border border-ink/40 transition-colors"
                             >
                                 Back
                             </button>
                         )}
                         <button
                             onClick={() => goTo(index + 1)}
-                            className="px-2.5 py-1 text-[11px] font-bold rounded-md bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                            className="px-2.5 py-1 text-[11px] font-bold rounded-md bg-glx-green hover:brightness-105 text-ink border border-ink transition-colors"
                         >
                             {index + 1 === total ? 'Done' : 'Next'}
                         </button>

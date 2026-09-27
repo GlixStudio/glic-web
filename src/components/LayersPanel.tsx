@@ -36,7 +36,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
     return (
         <div
             className={`group flex items-center gap-1.5 px-1.5 py-1 rounded-md cursor-pointer border ${
-                isActive ? 'bg-blue-600/20 border-blue-600/60' : 'border-transparent hover:bg-zinc-800/60'
+                isActive ? 'bg-blue-600/20 border-blue-600/60' : 'border-transparent hover:bg-white/60'
             }`}
             onClick={() => setActiveLayerId(layer.id)}
         >
@@ -45,7 +45,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                     e.stopPropagation();
                     updateLayer(layer.id, { visible: !layer.visible });
                 }}
-                className={`p-0.5 flex-shrink-0 ${layer.visible ? 'text-zinc-300' : 'text-zinc-600'}`}
+                className={`p-0.5 flex-shrink-0 ${layer.visible ? 'text-ink' : 'text-ink-2/70'}`}
                 title={layer.visible ? 'Hide layer' : 'Show layer'}
             >
                 {layer.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -55,11 +55,11 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                 <img
                     src={layer.thumb}
                     alt=""
-                    className="w-8 h-8 object-contain rounded-sm border border-zinc-700 bg-zinc-900 flex-shrink-0"
+                    className="w-8 h-8 object-contain rounded-sm border border-ink bg-cream-2 flex-shrink-0"
                     style={{ imageRendering: 'pixelated' }}
                 />
             ) : (
-                <div className="w-8 h-8 rounded-sm border border-zinc-700 bg-zinc-900 flex-shrink-0" />
+                <div className="w-8 h-8 rounded-sm border border-ink bg-cream-2 flex-shrink-0" />
             )}
 
             {renaming ? (
@@ -73,11 +73,11 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                         if (e.key === 'Escape') setRenaming(false);
                     }}
                     onClick={e => e.stopPropagation()}
-                    className="flex-1 min-w-0 bg-zinc-900 border border-zinc-600 text-zinc-200 text-[11px] rounded px-1 py-0.5 focus:outline-none"
+                    className="flex-1 min-w-0 bg-cream-2 border border-ink text-ink text-[11px] rounded px-1 py-0.5 focus:outline-none"
                 />
             ) : (
                 <span
-                    className={`flex-1 min-w-0 truncate text-[11px] ${isActive ? 'text-zinc-100' : 'text-zinc-400'}`}
+                    className={`flex-1 min-w-0 truncate text-[11px] ${isActive ? 'text-ink' : 'text-ink-2'}`}
                     onDoubleClick={() => {
                         setNameDraft(layer.name);
                         setRenaming(true);
@@ -90,7 +90,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
 
             {layer.mask && (
                 <span title="Layer has a mask">
-                    <Scan className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                    <Scan className="w-3 h-3 text-sky-600 flex-shrink-0" />
                 </span>
             )}
 
@@ -101,7 +101,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                         moveLayer(layer.id, 1);
                     }}
                     disabled={isTop}
-                    className="p-0.5 text-zinc-500 hover:text-zinc-200 disabled:opacity-30"
+                    className="p-0.5 text-ink-2 hover:text-ink disabled:opacity-30"
                     title="Move up"
                 >
                     <ArrowUp className="w-3 h-3" />
@@ -112,7 +112,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                         moveLayer(layer.id, -1);
                     }}
                     disabled={isBottom}
-                    className="p-0.5 text-zinc-500 hover:text-zinc-200 disabled:opacity-30"
+                    className="p-0.5 text-ink-2 hover:text-ink disabled:opacity-30"
                     title="Move down"
                 >
                     <ArrowDown className="w-3 h-3" />
@@ -122,7 +122,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                         e.stopPropagation();
                         duplicateLayer(layer.id);
                     }}
-                    className="p-0.5 text-zinc-500 hover:text-zinc-200"
+                    className="p-0.5 text-ink-2 hover:text-ink"
                     title="Duplicate layer"
                 >
                     <Copy className="w-3 h-3" />
@@ -132,7 +132,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                         e.stopPropagation();
                         deleteLayer(layer.id);
                     }}
-                    className="p-0.5 text-zinc-500 hover:text-red-400"
+                    className="p-0.5 text-ink-2 hover:text-red-600"
                     title="Delete layer"
                 >
                     <Trash2 className="w-3 h-3" />
@@ -178,7 +178,7 @@ export const LayersPanel: React.FC = () => {
                 onClick={() => setCollapsed(false)}
                 onPointerDown={e => e.stopPropagation()}
                 onPointerUp={e => e.stopPropagation()}
-                className="absolute right-4 top-16 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900/90 border border-zinc-700 rounded-lg backdrop-blur-sm text-xs text-zinc-300 hover:bg-zinc-800 transition-colors"
+                className="absolute right-4 top-16 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-cream-2 border border-ink rounded-lg backdrop-blur-sm text-xs text-ink hover:bg-white transition-colors"
                 title="Show layers"
             >
                 <Layers className="w-3.5 h-3.5" /> Layers · {layers.length}
@@ -189,25 +189,25 @@ export const LayersPanel: React.FC = () => {
     return (
         <div
             data-tour="layers"
-            className="absolute right-4 top-16 z-10 w-60 bg-zinc-900/95 border border-zinc-700 rounded-lg backdrop-blur-sm flex flex-col max-h-[70%]"
+            className="absolute right-4 top-16 z-10 w-60 bg-cream border border-ink rounded-lg backdrop-blur-sm flex flex-col max-h-[70%]"
             onPointerDown={e => e.stopPropagation()}
             onPointerUp={e => e.stopPropagation()}
         >
-            <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-zinc-800">
+            <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-line">
                 <Tooltip help={HELP.layersPanel}>
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400 cursor-help">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-2 cursor-help">
                     <Layers className="w-3 h-3" /> Layers
                 </span>
                 </Tooltip>
                 <div className="flex items-center gap-0.5">
                     <Tooltip help={HELP.flatten}>
-                    <button onClick={flatten} title="Flatten" className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors">
+                    <button onClick={flatten} title="Flatten" className="p-1 text-ink-2 hover:text-ink transition-colors">
                         <Combine className="w-3.5 h-3.5" />
                     </button>
                     </Tooltip>
                     <button
                         onClick={() => setCollapsed(true)}
-                        className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors"
+                        className="p-1 text-ink-2 hover:text-ink transition-colors"
                         title="Collapse"
                     >
                         <ChevronUp className="w-3.5 h-3.5" />
@@ -230,13 +230,13 @@ export const LayersPanel: React.FC = () => {
 
             {/* active layer controls */}
             {active && (
-                <div className="border-t border-zinc-800 p-2.5 space-y-2">
+                <div className="border-t border-line p-2.5 space-y-2">
                     <div className="flex items-center gap-2">
                         <Tooltip help={HELP.blendMode}>
                         <select
                             value={active.blendMode}
                             onChange={e => updateLayer(active.id, { blendMode: e.target.value as GlitchLayer['blendMode'] })}
-                            className="flex-1 min-w-0 bg-zinc-900 border border-zinc-700 text-zinc-200 text-[11px] rounded px-1.5 py-1 focus:outline-none focus:border-blue-500"
+                            className="flex-1 min-w-0 bg-cream-2 border border-ink text-ink text-[11px] rounded px-1.5 py-1 focus:outline-none focus:border-glx-orange"
                             title="Blend mode"
                         >
                             {BLEND_MODES.map(m => (
@@ -246,7 +246,7 @@ export const LayersPanel: React.FC = () => {
                             ))}
                         </select>
                         </Tooltip>
-                        <span className="text-[10px] font-mono text-zinc-400 w-8 text-right">
+                        <span className="text-[10px] font-mono text-ink-2 w-8 text-right">
                             {opacityDraft ?? active.opacity}%
                         </span>
                     </div>
@@ -259,7 +259,7 @@ export const LayersPanel: React.FC = () => {
                         onChange={e => setOpacity(parseInt(e.target.value), false)}
                         onPointerUp={e => setOpacity(parseInt((e.target as HTMLInputElement).value), true)}
                         onKeyUp={e => setOpacity(parseInt((e.target as HTMLInputElement).value), true)}
-                        className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        className="w-full h-1.5 bg-cream-3 rounded-lg appearance-none cursor-pointer accent-glx-orange"
                     />
                     </Tooltip>
 
@@ -272,7 +272,7 @@ export const LayersPanel: React.FC = () => {
                                 toast('success', `Mask set on ${active.name}`);
                             }}
                             disabled={!selection}
-                            className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors"
+                            className="py-1.5 rounded bg-cream-3 hover:bg-white text-ink disabled:opacity-40 transition-colors"
                         >
                             Set mask
                         </button>
@@ -281,7 +281,7 @@ export const LayersPanel: React.FC = () => {
                         <button
                             onClick={() => active.mask && setSelection(active.mask.slice())}
                             disabled={!active.mask}
-                            className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors"
+                            className="py-1.5 rounded bg-cream-3 hover:bg-white text-ink disabled:opacity-40 transition-colors"
                         >
                             Edit mask
                         </button>
@@ -295,7 +295,7 @@ export const LayersPanel: React.FC = () => {
                                 })
                             }
                             disabled={!active.mask}
-                            className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors"
+                            className="py-1.5 rounded bg-cream-3 hover:bg-white text-ink disabled:opacity-40 transition-colors"
                         >
                             Remove
                         </button>

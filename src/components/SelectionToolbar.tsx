@@ -71,13 +71,13 @@ export const SelectionToolbar: React.FC<Props> = ({
             onPointerUp={e => e.stopPropagation()}
         >
             {/* tool strip */}
-            <div className="flex flex-col bg-zinc-900/90 border border-zinc-700 rounded-lg backdrop-blur-sm overflow-hidden">
+            <div className="flex flex-col bg-cream-2 border border-ink rounded-lg backdrop-blur-sm overflow-hidden">
                 {TOOLS.map(t => (
                     <Tooltip key={t.id} help={t.help}>
                         <button
                             onClick={() => setTool(t.id)}
                             className={`p-2.5 transition-colors ${
-                                tool === t.id ? 'bg-blue-600 text-white' : 'text-zinc-300 hover:bg-zinc-800'
+                                tool === t.id ? 'bg-glx-orange text-ink' : 'text-ink hover:bg-white'
                             }`}
                         >
                             {t.icon}
@@ -88,15 +88,15 @@ export const SelectionToolbar: React.FC<Props> = ({
 
             {/* context options */}
             {showOptions && (
-                <div className="flex flex-col gap-2.5 bg-zinc-900/90 border border-zinc-700 rounded-lg backdrop-blur-sm p-2.5 w-44">
+                <div className="flex flex-col gap-2.5 bg-cream-2 border border-ink rounded-lg backdrop-blur-sm p-2.5 w-44">
                     <Tooltip help={HELP.combineMode}>
-                    <div className="flex rounded-md overflow-hidden border border-zinc-700">
+                    <div className="flex rounded-md overflow-hidden border border-ink">
                         {MODES.map(m => (
                             <button
                                 key={m.id}
                                 onClick={() => setOptions({ ...options, mode: m.id })}
                                 className={`flex-1 flex items-center justify-center py-1.5 transition-colors ${
-                                    options.mode === m.id ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:bg-zinc-800'
+                                    options.mode === m.id ? 'bg-glx-orange text-ink' : 'text-ink-2 hover:bg-white'
                                 }`}
                                 title={m.label}
                             >
@@ -108,9 +108,9 @@ export const SelectionToolbar: React.FC<Props> = ({
 
                     {tool === 'brush' && (
                         <Tooltip help={HELP.brushSize}>
-                        <label className="flex flex-col gap-1 text-[10px] text-zinc-400 uppercase tracking-wide">
+                        <label className="flex flex-col gap-1 text-[10px] text-ink-2 uppercase tracking-wide">
                             <span className="flex justify-between">
-                                Brush size <span className="font-mono text-zinc-300">{options.brushSize}px</span>
+                                Brush size <span className="font-mono text-ink">{options.brushSize}px</span>
                             </span>
                             <input
                                 type="range"
@@ -118,9 +118,9 @@ export const SelectionToolbar: React.FC<Props> = ({
                                 max={512}
                                 value={options.brushSize}
                                 onChange={e => setOptions({ ...options, brushSize: parseInt(e.target.value) })}
-                                className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                className="w-full h-1.5 bg-cream-3 rounded-lg appearance-none cursor-pointer accent-glx-orange"
                             />
-                            <span className="normal-case tracking-normal text-zinc-500">[ and ] resize · Alt erases</span>
+                            <span className="normal-case tracking-normal text-ink-2">[ and ] resize · Alt erases</span>
                         </label>
                         </Tooltip>
                     )}
@@ -128,9 +128,9 @@ export const SelectionToolbar: React.FC<Props> = ({
                     {tool === 'wand' && (
                         <>
                             <Tooltip help={HELP.tolerance}>
-                            <label className="flex flex-col gap-1 text-[10px] text-zinc-400 uppercase tracking-wide">
+                            <label className="flex flex-col gap-1 text-[10px] text-ink-2 uppercase tracking-wide">
                                 <span className="flex justify-between">
-                                    Tolerance <span className="font-mono text-zinc-300">{options.tolerance}</span>
+                                    Tolerance <span className="font-mono text-ink">{options.tolerance}</span>
                                 </span>
                                 <input
                                     type="range"
@@ -138,18 +138,18 @@ export const SelectionToolbar: React.FC<Props> = ({
                                     max={255}
                                     value={options.tolerance}
                                     onChange={e => setOptions({ ...options, tolerance: parseInt(e.target.value) })}
-                                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                    className="w-full h-1.5 bg-cream-3 rounded-lg appearance-none cursor-pointer accent-glx-orange"
                                 />
                             </label>
                             </Tooltip>
                             <Tooltip help={HELP.contiguous}>
-                            <label className="flex items-center justify-between text-[10px] text-zinc-400 uppercase tracking-wide cursor-pointer">
+                            <label className="flex items-center justify-between text-[10px] text-ink-2 uppercase tracking-wide cursor-pointer">
                                 Contiguous
                                 <input
                                     type="checkbox"
                                     checked={options.contiguous}
                                     onChange={e => setOptions({ ...options, contiguous: e.target.checked })}
-                                    className="accent-blue-500"
+                                    className="accent-glx-green"
                                 />
                             </label>
                             </Tooltip>
@@ -157,9 +157,9 @@ export const SelectionToolbar: React.FC<Props> = ({
                     )}
 
                     <Tooltip help={HELP.feather}>
-                    <label className="flex flex-col gap-1 text-[10px] text-zinc-400 uppercase tracking-wide">
+                    <label className="flex flex-col gap-1 text-[10px] text-ink-2 uppercase tracking-wide">
                         <span className="flex justify-between">
-                            Feather <span className="font-mono text-zinc-300">{options.feather}px</span>
+                            Feather <span className="font-mono text-ink">{options.feather}px</span>
                         </span>
                         <input
                             type="range"
@@ -167,14 +167,14 @@ export const SelectionToolbar: React.FC<Props> = ({
                             max={64}
                             value={options.feather}
                             onChange={e => setOptions({ ...options, feather: parseInt(e.target.value) })}
-                            className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            className="w-full h-1.5 bg-cream-3 rounded-lg appearance-none cursor-pointer accent-glx-orange"
                         />
                     </label>
                     </Tooltip>
 
                     <div className="grid grid-cols-2 gap-1.5 text-[10px]">
                         <Tooltip help={HELP.selectAll}>
-                        <button onClick={onSelectAll} className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors">
+                        <button onClick={onSelectAll} className="py-1.5 rounded bg-cream-3 hover:bg-white text-ink transition-colors">
                             All
                         </button>
                         </Tooltip>
@@ -182,7 +182,7 @@ export const SelectionToolbar: React.FC<Props> = ({
                         <button
                             onClick={onInvert}
                             disabled={!hasSelection}
-                            className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors"
+                            className="py-1.5 rounded bg-cream-3 hover:bg-white text-ink disabled:opacity-40 transition-colors"
                         >
                             Invert
                         </button>
@@ -191,7 +191,7 @@ export const SelectionToolbar: React.FC<Props> = ({
                         <button
                             onClick={onClear}
                             disabled={!hasSelection}
-                            className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
+                            className="py-1.5 rounded bg-cream-3 hover:bg-white text-ink disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
                         >
                             <XCircle className="w-3 h-3" /> Clear
                         </button>
@@ -200,7 +200,7 @@ export const SelectionToolbar: React.FC<Props> = ({
                         <button
                             onClick={onReselect}
                             disabled={!hasLastSelection || hasSelection}
-                            className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
+                            className="py-1.5 rounded bg-cream-3 hover:bg-white text-ink disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
                         >
                             <RotateCcw className="w-3 h-3" /> Redo
                         </button>
@@ -210,17 +210,17 @@ export const SelectionToolbar: React.FC<Props> = ({
                     <button
                         onClick={onApplyFeather}
                         disabled={!hasSelection || options.feather === 0}
-                        className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors text-[10px] flex items-center justify-center gap-1"
+                        className="py-1.5 rounded bg-cream-3 hover:bg-white text-ink disabled:opacity-40 transition-colors text-[10px] flex items-center justify-center gap-1"
                     >
                         <Blend className="w-3 h-3" /> Feather selection
                     </button>
                     </Tooltip>
 
-                    <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-zinc-800">
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-line">
                         <Tooltip help={HELP.maskIn}>
                         <button
                             onClick={() => maskInputRef.current?.click()}
-                            className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors flex items-center justify-center gap-1"
+                            className="py-1.5 rounded bg-cream-3 hover:bg-white text-ink transition-colors flex items-center justify-center gap-1"
                         >
                             <FileUp className="w-3 h-3" /> Mask in
                         </button>
@@ -229,7 +229,7 @@ export const SelectionToolbar: React.FC<Props> = ({
                         <button
                             onClick={onExportMask}
                             disabled={!hasSelection}
-                            className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
+                            className="py-1.5 rounded bg-cream-3 hover:bg-white text-ink disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
                         >
                             <FileDown className="w-3 h-3" /> Mask out
                         </button>
@@ -248,7 +248,7 @@ export const SelectionToolbar: React.FC<Props> = ({
                     </div>
 
                     {coveragePct !== null && (
-                        <p className="text-[10px] text-zinc-500 text-center">selection covers {coveragePct}%</p>
+                        <p className="text-[10px] text-ink-2 text-center">selection covers {coveragePct}%</p>
                     )}
                 </div>
             )}
