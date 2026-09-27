@@ -1,14 +1,19 @@
+import { MaybeTooltip } from './Tooltip';
+import type { HelpEntry } from '../../core/help';
+
 interface SelectProps<T extends string | number> {
     label: string;
     value: T;
     options: { label: string; value: T }[];
     onChange: (val: T) => void;
     title?: string;
+    help?: HelpEntry;
 }
 
-export function Select<T extends string | number>({ label, value, options, onChange, title }: SelectProps<T>) {
+export function Select<T extends string | number>({ label, value, options, onChange, title, help }: SelectProps<T>) {
     return (
-        <div className="flex flex-col gap-1.5" title={title}>
+        <MaybeTooltip help={help}>
+        <div className="flex flex-col gap-1.5" title={help ? undefined : title}>
             <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">{label}</span>
             <div className="relative">
                 <select
@@ -33,5 +38,6 @@ export function Select<T extends string | number>({ label, value, options, onCha
                 </div>
             </div>
         </div>
+        </MaybeTooltip>
     );
 }

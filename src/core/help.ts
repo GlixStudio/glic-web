@@ -1,0 +1,174 @@
+// Beginner help content, shown in hover tooltips and the guided tour.
+// One source of truth so the linked editor, the channel mixer, and the
+// toolbars all explain a control the same way. Written for artists:
+// what a control is, and what happens to the image when you move it.
+
+export interface HelpEntry {
+    title: string;
+    body: string;
+    shortcut?: string;
+}
+
+export const HELP = {
+    // --- global ---
+    preset: {
+        title: 'Presets',
+        body: '144 complete looks from the GLIC community. Pick one, hit ENCODE, then tweak from there. The save icon stores your current settings as a custom preset; Export/Import move your presets between machines as JSON.',
+    },
+    colorspace: {
+        title: 'Color space',
+        body: 'The image is split into three channels in this space before glitching, and each channel is destroyed separately. YCbCr keeps brightness in one clean channel; HWB and HSB put hue in a channel, so damage becomes psychedelic color shifts. Changing this changes everything.',
+    },
+    separateChannels: {
+        title: 'Separate channels',
+        body: 'Off: one set of controls drives all three channels. On: a side-by-side mixer where each channel gets its own settings - e.g. keep brightness intact but wreck the color channels.',
+    },
+
+    // --- segmentation ---
+    minBlock: {
+        title: 'Min block size',
+        body: 'The smallest tile the image may be cut into. Small tiles follow detail closely; raising this forces chunkier minimum shapes.',
+    },
+    maxBlock: {
+        title: 'Max block size',
+        body: 'The largest tile allowed. Big blocks produce big slabs of unified glitch; small maximums make everything mosaic-fine.',
+    },
+    threshold: {
+        title: 'Split threshold',
+        body: 'How busy an area must be before it gets cut into smaller tiles. Low values split eagerly (fine mosaic everywhere); high values keep large lazy slabs even over detail.',
+    },
+
+    // --- prediction ---
+    prediction: {
+        title: 'Prediction',
+        body: 'Each tile is first guessed from its neighbors; only the error is encoded, and wrong guesses become the glitch. Different predictors streak differently: H/V smear sideways/down, PAETH is PNG’s clean one, SAD picks the best fit per tile, BSAD the worst, RANDOM rolls dice per tile.',
+    },
+
+    // --- quantization ---
+    quantization: {
+        title: 'Quantization',
+        body: 'Crushes the prediction error before storing it (divides by value÷2). Higher values band and posterize the reconstruction. 0-2 is off.',
+    },
+    clamping: {
+        title: 'Clamping',
+        body: 'What happens when pixel math overflows. None clips at the limits (softer). Mod 256 wraps around, so a too-bright pixel snaps to dark - hard, inverted, classic glitch edges.',
+    },
+
+    // --- wavelet ---
+    wavelet: {
+        title: 'Wavelet',
+        body: 'The transform that smears each tile into frequency ripples before storage. All 67 originals from desktop GLIC are here, including the mathematically broken ones that define its look - try CDF 9/7, the even BiOrthogonals, or Battle 23. Random picks a fresh one per encode.',
+    },
+    transformType: {
+        title: 'Transform type',
+        body: 'FWT concentrates the tile’s energy into a corner (soft, smeary damage). WPT keeps re-transforming everything (busier, more crystalline). Random rolls per encode.',
+    },
+    compression: {
+        title: 'Compression',
+        body: 'After the transform, ripples quieter than this threshold are deleted. Higher values hollow tiles out - washed, simplified, sometimes empty.',
+    },
+    scale: {
+        title: 'Scale',
+        body: 'Storage precision for the ripples, as 2^x. This is a main damage dial: lower it and the wavelet coefficients get rounded harder and harder until tiles collapse.',
+    },
+
+    // --- encoding ---
+    encodingMethod: {
+        title: 'Final encoding',
+        body: 'How numbers are packed into the .glic file: RAW (roomy 32-bit), PACKED (tight bitstream), RLE (run-length). It shapes the file’s texture for hex-editor databending more than the on-screen image.',
+    },
+
+    // --- actions ---
+    encode: {
+        title: 'Encode',
+        body: 'Runs the codec into the active layer (creates Layer 1 if there is none). The current selection becomes that layer’s mask, so only the selected region shows the glitch.',
+        shortcut: 'E',
+    },
+    newLayer: {
+        title: 'New layer',
+        body: 'Encodes the current composite into a fresh layer on top of the stack - stacking damage on damage, but every pass stays separately adjustable.',
+        shortcut: 'R',
+    },
+    iterate: {
+        title: 'Iterate',
+        body: 'Feeds the encoder its own output this many times in a row, inside the active layer. Compound rot in one click.',
+    },
+    undo: {
+        title: 'Undo',
+        body: 'Steps back through structural changes: encodes, new layers, deletes, imports, flatten.',
+        shortcut: 'U',
+    },
+    savePng: {
+        title: 'Save PNG',
+        body: 'Downloads the composite exactly as you see it (layers, masks, and adjustments baked in) at full resolution - print-ready.',
+        shortcut: 'S',
+    },
+    saveGlic: {
+        title: 'Save .glic',
+        body: 'Downloads the active layer’s raw codec stream. It opens in desktop GLIC, and it’s the file to open in a hex editor for databending.',
+        shortcut: 'G',
+    },
+    importGlic: {
+        title: 'Import .glic',
+        body: 'Decodes a .glic file - from this app, desktop GLIC, or one you corrupted by hand - into the active layer.',
+        shortcut: 'I',
+    },
+    overrideHeader: {
+        title: 'Override header',
+        body: 'Decode an imported .glic with your CURRENT settings instead of the ones stored in the file - the original GLIC’s misdecoding trick. Wrong settings, beautiful results.',
+    },
+
+    // --- selection tools ---
+    toolMove: { title: 'Move / pan', body: 'Drag to pan when zoomed in. Hold Space for a temporary pan while any other tool is active.', shortcut: 'V' },
+    toolRect: { title: 'Rectangular marquee', body: 'Drag a rectangle to select. Only the selection gets glitched on the next encode. Plain click deselects; Shift adds, Alt subtracts.', shortcut: 'M' },
+    toolEllipse: { title: 'Elliptical marquee', body: 'Drag an ellipse to select. Press M again to switch back to the rectangle.', shortcut: 'M M' },
+    toolLasso: { title: 'Lasso', body: 'Draw a freehand outline; it closes into a selection when you release.', shortcut: 'L' },
+    toolWand: { title: 'Magic wand', body: 'Click a color to select everything similar to it. Tolerance sets how loose "similar" is; Contiguous limits it to the connected area.', shortcut: 'W' },
+    toolBrush: { title: 'Mask brush', body: 'Paint the selection directly. Hold Alt to erase, [ and ] to resize the brush.', shortcut: 'B' },
+    combineMode: {
+        title: 'Combine mode',
+        body: 'How a new selection meets the existing one: replace it, add to it (or hold Shift), or subtract from it (or hold Alt).',
+    },
+    tolerance: { title: 'Tolerance', body: 'How different a color may be and still be picked up by the wand. Low = strict, high = grabs half the image.' },
+    contiguous: { title: 'Contiguous', body: 'On: the wand only spreads through connected pixels. Off: it selects that color everywhere in the image.' },
+    brushSize: { title: 'Brush size', body: 'Diameter of the mask brush in image pixels. [ and ] resize it from the keyboard.' },
+    feather: {
+        title: 'Feather',
+        body: 'Softens selection edges by this many pixels so the glitch fades into the untouched image instead of ending in a hard seam - important for prints. Applies to new selections; use "Feather selection" for the current one.',
+    },
+    selectAll: { title: 'Select all', body: 'Selects the whole image.', shortcut: 'A' },
+    invertSelection: { title: 'Invert', body: 'Swaps selected and unselected - glitch everything EXCEPT the area you outlined.', shortcut: 'X' },
+    clearSelection: { title: 'Clear', body: 'Deselects. The mask is remembered - Redo brings it back.', shortcut: 'Esc / D' },
+    reselect: { title: 'Reselect', body: 'Restores the last cleared selection.' },
+    featherApply: { title: 'Feather selection', body: 'Blurs the current selection’s edges by the feather amount, once.' },
+    maskIn: { title: 'Import mask', body: 'Load any grayscale image as the selection: white = selected, black = not, grays in between. Author masks in any tool and reuse them across pieces.' },
+    maskOut: { title: 'Export mask', body: 'Save the current selection as a grayscale PNG to reuse later or refine elsewhere.' },
+
+    // --- layers ---
+    layersPanel: {
+        title: 'Layers',
+        body: 'Every encode lands on a layer. Each layer keeps its full glitch plus its own mask, opacity, and blend mode - all adjustable after the fact without re-encoding.',
+    },
+    layerVisibility: { title: 'Visibility', body: 'Hide a layer to see the image without its glitch. Nothing is lost - toggle it back anytime.' },
+    blendMode: {
+        title: 'Blend mode',
+        body: 'How this layer’s glitch mixes with what is underneath. Normal covers; Multiply darkens; Screen lightens; Overlay adds contrast; Difference inverts where they disagree (a glitch-art favorite); Add blows out highlights.',
+    },
+    layerOpacity: { title: 'Opacity', body: 'Fades the layer’s glitch into the image below. 100% = full effect, 0% = invisible.' },
+    setMask: { title: 'Set mask', body: 'Replaces this layer’s mask with the current working selection.' },
+    editMask: { title: 'Edit mask', body: 'Loads this layer’s mask into the selection tools so you can brush, feather, or invert it - then Set mask to apply.' },
+    removeMask: { title: 'Remove mask', body: 'Drops the mask so the layer’s glitch covers the whole frame.' },
+    flatten: {
+        title: 'Flatten',
+        body: 'Bakes the whole stack into a new baseline image and clears the layers - like flattening in Photoshop. Undoable. Do it when a stage is "done" and you want to build on top.',
+    },
+
+    // --- viewer ---
+    zoomControls: { title: 'Zoom', body: 'Mouse wheel zooms too. F toggles between fit and 100%; drag to pan while zoomed.', shortcut: 'F' },
+    compare: { title: 'Compare', body: 'Hold to peek at the untouched source image.', shortcut: 'C (hold)' },
+    segmentationView: {
+        title: 'Segmentation view',
+        body: 'Shows how the last encode tiled the image - every block flooded with its center value. Useful for understanding what the split threshold is doing.',
+    },
+    changeImage: { title: 'Change image', body: 'Load a different image or .glic file. The layer stack starts fresh.' },
+} as const satisfies Record<string, HelpEntry>;

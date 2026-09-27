@@ -1,4 +1,6 @@
 import React from 'react';
+import { MaybeTooltip } from './Tooltip';
+import type { HelpEntry } from '../../core/help';
 
 interface SliderProps {
     label: string;
@@ -10,11 +12,13 @@ interface SliderProps {
     /** Optional display formatter, e.g. exponent sliders showing 2^x. */
     format?: (val: number) => string;
     title?: string;
+    help?: HelpEntry;
 }
 
-export const Slider: React.FC<SliderProps> = ({ label, value, min, max, step = 1, onChange, format, title }) => {
+export const Slider: React.FC<SliderProps> = ({ label, value, min, max, step = 1, onChange, format, title, help }) => {
     return (
-        <div className="flex flex-col gap-1.5" title={title}>
+        <MaybeTooltip help={help}>
+        <div className="flex flex-col gap-1.5" title={help ? undefined : title}>
             <div className="flex justify-between text-xs font-medium text-zinc-400 uppercase tracking-wider">
                 <span>{label}</span>
                 <span className="text-zinc-200 font-mono">{format ? format(value) : value}</span>
@@ -29,5 +33,6 @@ export const Slider: React.FC<SliderProps> = ({ label, value, min, max, step = 1
                 className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all"
             />
         </div>
+        </MaybeTooltip>
     );
 };
