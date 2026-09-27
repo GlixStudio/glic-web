@@ -7,6 +7,8 @@ import {
     downloadBlob,
     timestampedFilename,
 } from '../core/imageio';
+import { HELP } from '../core/help';
+import { Tooltip } from './controls/Tooltip';
 
 export const ActionBar: React.FC = () => {
     const {
@@ -111,6 +113,7 @@ export const ActionBar: React.FC = () => {
             )}
 
             <div className="flex gap-2">
+                <Tooltip help={HELP.encode}>
                 <button
                     className={`flex-1 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
                         !originalImage || isProcessing
@@ -119,13 +122,14 @@ export const ActionBar: React.FC = () => {
                     }`}
                     onClick={encodeNow}
                     disabled={!originalImage || isProcessing}
-                    title="Encode into the active layer (E) - the current selection becomes its mask"
                 >
                     <Play className="w-4 h-4 fill-current" />
                     <span className="text-sm">ENCODE</span>
                     <span className="text-[10px] opacity-60 font-normal">E</span>
                 </button>
+                </Tooltip>
 
+                <Tooltip help={HELP.newLayer}>
                 <button
                     className={`flex-1 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
                         !processed || isProcessing
@@ -134,15 +138,16 @@ export const ActionBar: React.FC = () => {
                     }`}
                     onClick={newLayerEncode}
                     disabled={!processed || isProcessing}
-                    title="Encode the current composite into a new layer on top (R)"
                 >
                     <Layers className="w-4 h-4" />
                     <span className="text-sm">NEW LAYER</span>
                     <span className="text-[10px] opacity-60 font-normal">R</span>
                 </button>
+                </Tooltip>
             </div>
 
             <div className="flex gap-2">
+                <Tooltip help={HELP.iterate}>
                 <button
                     className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
                         !originalImage || isProcessing
@@ -151,11 +156,11 @@ export const ActionBar: React.FC = () => {
                     }`}
                     onClick={() => iterate(iterateCount)}
                     disabled={!originalImage || isProcessing}
-                    title={`Encode ${iterateCount} times in a row into the active layer`}
                 >
                     <Repeat className="w-3 h-3" />
                     Iterate ×
                 </button>
+                </Tooltip>
                 <select
                     value={iterateCount}
                     onChange={e => setIterateCount(parseInt(e.target.value))}
@@ -168,6 +173,7 @@ export const ActionBar: React.FC = () => {
                         </option>
                     ))}
                 </select>
+                <Tooltip help={HELP.undo}>
                 <button
                     className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
                         !canUndo || isProcessing
@@ -176,15 +182,16 @@ export const ActionBar: React.FC = () => {
                     }`}
                     onClick={undo}
                     disabled={!canUndo || isProcessing}
-                    title="Undo last encode (U)"
                 >
                     <Undo2 className="w-3 h-3" />
                     Undo
                     <span className="text-[9px] opacity-60">U</span>
                 </button>
+                </Tooltip>
             </div>
 
             <div className="flex gap-2 pt-1 border-t border-zinc-800">
+                <Tooltip help={HELP.savePng}>
                 <button
                     className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
                         !processed
@@ -193,11 +200,12 @@ export const ActionBar: React.FC = () => {
                     }`}
                     onClick={saveImage}
                     disabled={!processed}
-                    title="Save processed image as PNG (S)"
                 >
                     <Download className="w-3 h-3" /> PNG
                     <span className="text-[9px] opacity-60">S</span>
                 </button>
+                </Tooltip>
+                <Tooltip help={HELP.saveGlic}>
                 <button
                     className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
                         !encodedFile
@@ -206,20 +214,21 @@ export const ActionBar: React.FC = () => {
                     }`}
                     onClick={saveGlic}
                     disabled={!encodedFile}
-                    title="Save the active layer's .glic stream (G) - open it in desktop GLIC or databend it"
                 >
                     <Download className="w-3 h-3" /> .glic
                     <span className="text-[9px] opacity-60">G</span>
                 </button>
+                </Tooltip>
+                <Tooltip help={HELP.importGlic}>
                 <button
                     className="flex-1 py-2 rounded-lg text-xs font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 transition-all flex items-center justify-center gap-1.5"
                     onClick={() => glicInputRef.current?.click()}
                     disabled={isProcessing}
-                    title="Decode a .glic file (I)"
                 >
                     <FileUp className="w-3 h-3" /> Import
                     <span className="text-[9px] opacity-60">I</span>
                 </button>
+                </Tooltip>
                 <input
                     ref={glicInputRef}
                     type="file"
@@ -233,7 +242,8 @@ export const ActionBar: React.FC = () => {
                 />
             </div>
 
-            <label className="flex items-center gap-2 text-[11px] text-zinc-500 cursor-pointer select-none" title="Decode imported .glic files with the current settings instead of the ones stored in the file (original GLIC's header-override glitch trick)">
+            <Tooltip help={HELP.overrideHeader}>
+            <label className="flex items-center gap-2 text-[11px] text-zinc-500 cursor-pointer select-none">
                 <input
                     type="checkbox"
                     checked={overrideHeader}
@@ -242,6 +252,7 @@ export const ActionBar: React.FC = () => {
                 />
                 Override header on import (decode with current settings)
             </label>
+            </Tooltip>
         </div>
     );
 };

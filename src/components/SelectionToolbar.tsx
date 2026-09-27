@@ -1,22 +1,22 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { type CombineMode, type SelectionTool, type ToolOptions } from '../core/selection';
-import { useRef } from 'react';
+import { HELP, type HelpEntry } from '../core/help';
+import { Tooltip } from './controls/Tooltip';
 import { Hand, SquareDashed, CircleDashed, Lasso, Wand2, Paintbrush, Plus, Minus, Square, XCircle, RotateCcw, Blend, FileUp, FileDown } from 'lucide-react';
 
 interface ToolDef {
     id: SelectionTool;
     icon: React.ReactNode;
-    label: string;
-    shortcut: string;
+    help: HelpEntry;
 }
 
 const TOOLS: ToolDef[] = [
-    { id: 'move', icon: <Hand className="w-4 h-4" />, label: 'Move / pan', shortcut: 'V' },
-    { id: 'rect', icon: <SquareDashed className="w-4 h-4" />, label: 'Rectangular marquee', shortcut: 'M' },
-    { id: 'ellipse', icon: <CircleDashed className="w-4 h-4" />, label: 'Elliptical marquee', shortcut: 'M again' },
-    { id: 'lasso', icon: <Lasso className="w-4 h-4" />, label: 'Lasso', shortcut: 'L' },
-    { id: 'wand', icon: <Wand2 className="w-4 h-4" />, label: 'Magic wand', shortcut: 'W' },
-    { id: 'brush', icon: <Paintbrush className="w-4 h-4" />, label: 'Mask brush (Alt = erase)', shortcut: 'B' },
+    { id: 'move', icon: <Hand className="w-4 h-4" />, help: HELP.toolMove },
+    { id: 'rect', icon: <SquareDashed className="w-4 h-4" />, help: HELP.toolRect },
+    { id: 'ellipse', icon: <CircleDashed className="w-4 h-4" />, help: HELP.toolEllipse },
+    { id: 'lasso', icon: <Lasso className="w-4 h-4" />, help: HELP.toolLasso },
+    { id: 'wand', icon: <Wand2 className="w-4 h-4" />, help: HELP.toolWand },
+    { id: 'brush', icon: <Paintbrush className="w-4 h-4" />, help: HELP.toolBrush },
 ];
 
 const MODES: { id: CombineMode; icon: React.ReactNode; label: string }[] = [
@@ -72,22 +72,23 @@ export const SelectionToolbar: React.FC<Props> = ({
             {/* tool strip */}
             <div className="flex flex-col bg-zinc-900/90 border border-zinc-700 rounded-lg backdrop-blur-sm overflow-hidden">
                 {TOOLS.map(t => (
-                    <button
-                        key={t.id}
-                        onClick={() => setTool(t.id)}
-                        className={`p-2.5 transition-colors ${
-                            tool === t.id ? 'bg-blue-600 text-white' : 'text-zinc-300 hover:bg-zinc-800'
-                        }`}
-                        title={`${t.label} (${t.shortcut})`}
-                    >
-                        {t.icon}
-                    </button>
+                    <Tooltip key={t.id} help={t.help}>
+                        <button
+                            onClick={() => setTool(t.id)}
+                            className={`p-2.5 transition-colors ${
+                                tool === t.id ? 'bg-blue-600 text-white' : 'text-zinc-300 hover:bg-zinc-800'
+                            }`}
+                        >
+                            {t.icon}
+                        </button>
+                    </Tooltip>
                 ))}
             </div>
 
             {/* context options */}
             {showOptions && (
                 <div className="flex flex-col gap-2.5 bg-zinc-900/90 border border-zinc-700 rounded-lg backdrop-blur-sm p-2.5 w-44">
+                    <Tooltip help={HELP.combineMode}>
                     <div className="flex rounded-md overflow-hidden border border-zinc-700">
                         {MODES.map(m => (
                             <button
@@ -102,8 +103,10 @@ export const SelectionToolbar: React.FC<Props> = ({
                             </button>
                         ))}
                     </div>
+                    </Tooltip>
 
                     {tool === 'brush' && (
+                        <Tooltip help={HELP.brushSize}>
                         <label className="flex flex-col gap-1 text-[10px] text-zinc-400 uppercase tracking-wide">
                             <span className="flex justify-between">
                                 Brush size <span className="font-mono text-zinc-300">{options.brushSize}px</span>
@@ -118,10 +121,12 @@ export const SelectionToolbar: React.FC<Props> = ({
                             />
                             <span className="normal-case tracking-normal text-zinc-500">[ and ] resize · Alt erases</span>
                         </label>
+                        </Tooltip>
                     )}
 
                     {tool === 'wand' && (
                         <>
+                            <Tooltip help={HELP.tolerance}>
                             <label className="flex flex-col gap-1 text-[10px] text-zinc-400 uppercase tracking-wide">
                                 <span className="flex justify-between">
                                     Tolerance <span className="font-mono text-zinc-300">{options.tolerance}</span>
@@ -135,6 +140,8 @@ export const SelectionToolbar: React.FC<Props> = ({
                                     className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                                 />
                             </label>
+                            </Tooltip>
+                            <Tooltip help={HELP.contiguous}>
                             <label className="flex items-center justify-between text-[10px] text-zinc-400 uppercase tracking-wide cursor-pointer">
                                 Contiguous
                                 <input
@@ -144,9 +151,11 @@ export const SelectionToolbar: React.FC<Props> = ({
                                     className="accent-blue-500"
                                 />
                             </label>
+                            </Tooltip>
                         </>
                     )}
 
+                    <Tooltip help={HELP.feather}>
                     <label className="flex flex-col gap-1 text-[10px] text-zinc-400 uppercase tracking-wide">
                         <span className="flex justify-between">
                             Feather <span className="font-mono text-zinc-300">{options.feather}px</span>
@@ -160,61 +169,70 @@ export const SelectionToolbar: React.FC<Props> = ({
                             className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                         />
                     </label>
+                    </Tooltip>
 
                     <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                        <button onClick={onSelectAll} className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors" title="Select the whole image (A)">
+                        <Tooltip help={HELP.selectAll}>
+                        <button onClick={onSelectAll} className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors">
                             All
                         </button>
+                        </Tooltip>
+                        <Tooltip help={HELP.invertSelection}>
                         <button
                             onClick={onInvert}
                             disabled={!hasSelection}
                             className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors"
-                            title="Invert selection (X)"
                         >
                             Invert
                         </button>
+                        </Tooltip>
+                        <Tooltip help={HELP.clearSelection}>
                         <button
                             onClick={onClear}
                             disabled={!hasSelection}
                             className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
-                            title="Deselect (Esc / D)"
                         >
                             <XCircle className="w-3 h-3" /> Clear
                         </button>
+                        </Tooltip>
+                        <Tooltip help={HELP.reselect}>
                         <button
                             onClick={onReselect}
                             disabled={!hasLastSelection || hasSelection}
                             className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
-                            title="Restore the last selection"
                         >
                             <RotateCcw className="w-3 h-3" /> Redo
                         </button>
+                        </Tooltip>
                     </div>
+                    <Tooltip help={HELP.featherApply}>
                     <button
                         onClick={onApplyFeather}
                         disabled={!hasSelection || options.feather === 0}
                         className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors text-[10px] flex items-center justify-center gap-1"
-                        title="Blur the current selection's edges by the feather amount"
                     >
                         <Blend className="w-3 h-3" /> Feather selection
                     </button>
+                    </Tooltip>
 
                     <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1 border-t border-zinc-800">
+                        <Tooltip help={HELP.maskIn}>
                         <button
                             onClick={() => maskInputRef.current?.click()}
                             className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors flex items-center justify-center gap-1"
-                            title="Load a grayscale image as the selection mask (white = selected; resized to fit)"
                         >
                             <FileUp className="w-3 h-3" /> Mask in
                         </button>
+                        </Tooltip>
+                        <Tooltip help={HELP.maskOut}>
                         <button
                             onClick={onExportMask}
                             disabled={!hasSelection}
                             className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors flex items-center justify-center gap-1"
-                            title="Save the selection mask as a grayscale PNG"
                         >
                             <FileDown className="w-3 h-3" /> Mask out
                         </button>
+                        </Tooltip>
                         <input
                             ref={maskInputRef}
                             type="file"

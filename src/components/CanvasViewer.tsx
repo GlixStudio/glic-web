@@ -24,6 +24,8 @@ import {
     type ToolOptions,
 } from '../core/selection';
 import { SelectionToolbar } from './SelectionToolbar';
+import { HELP } from '../core/help';
+import { Tooltip } from './controls/Tooltip';
 import { LayersPanel } from './LayersPanel';
 import { Upload, RefreshCw, Maximize, Grid3x3, Eye, ZoomIn, ZoomOut } from 'lucide-react';
 
@@ -610,6 +612,7 @@ export const CanvasViewer: React.FC = () => {
                         onPointerDown={e => e.stopPropagation()}
                         onPointerUp={e => e.stopPropagation()}
                     >
+                        <Tooltip help={HELP.zoomControls}>
                         <div className="flex items-center bg-zinc-900/90 border border-zinc-700 rounded-lg backdrop-blur-sm overflow-hidden">
                             <button
                                 onClick={() => setZoomClamped((zoom ?? fitScale) / 1.2)}
@@ -640,8 +643,10 @@ export const CanvasViewer: React.FC = () => {
                                 <Maximize className="w-4 h-4" />
                             </button>
                         </div>
+                        </Tooltip>
 
                         {processed && originalImage && (
+                            <Tooltip help={HELP.compare}>
                             <button
                                 onPointerDown={e => {
                                     e.stopPropagation();
@@ -654,13 +659,14 @@ export const CanvasViewer: React.FC = () => {
                                         ? 'bg-blue-600 border-blue-500 text-white'
                                         : 'bg-zinc-900/90 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
                                 }`}
-                                title="Hold to compare with source (C)"
                             >
                                 <Eye className="w-4 h-4" />
                             </button>
+                            </Tooltip>
                         )}
 
                         {processed && lastSegments && (
+                            <Tooltip help={HELP.segmentationView}>
                             <button
                                 onClick={() => setShowSegmentation(s => !s)}
                                 className={`p-2 rounded-lg border backdrop-blur-sm transition-colors ${
@@ -668,19 +674,20 @@ export const CanvasViewer: React.FC = () => {
                                         ? 'bg-blue-600 border-blue-500 text-white'
                                         : 'bg-zinc-900/90 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
                                 }`}
-                                title="Segmentation view (blocks flooded with their center value)"
                             >
                                 <Grid3x3 className="w-4 h-4" />
                             </button>
+                            </Tooltip>
                         )}
 
+                        <Tooltip help={HELP.changeImage}>
                         <button
                             onClick={() => changeImageInputRef.current?.click()}
                             className="p-2 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 rounded-lg border border-zinc-700 backdrop-blur-sm transition-colors"
-                            title="Change image"
                         >
                             <RefreshCw className="w-4 h-4" />
                         </button>
+                        </Tooltip>
                         <input
                             ref={changeImageInputRef}
                             type="file"

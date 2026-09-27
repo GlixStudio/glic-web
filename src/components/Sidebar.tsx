@@ -8,6 +8,7 @@ import { TilesetPanel } from './TilesetPanel';
 import { ActionBar } from './ActionBar';
 import { AboutModal } from './AboutModal';
 import { Toggle } from './controls/Toggle';
+import { HELP } from '../core/help';
 import { Info } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -67,9 +68,9 @@ export const Sidebar: React.FC = () => {
                         <>
                             <Toggle
                                 label="Separate channels"
+                                help={HELP.separateChannels}
                                 checked={separateChannels}
                                 onChange={setSeparateChannels}
-                                title="Off: one set of settings drives all three channels. On: tune each channel individually."
                             />
                             {separateChannels ? <ChannelMatrix /> : <ChannelSettings />}
                         </>

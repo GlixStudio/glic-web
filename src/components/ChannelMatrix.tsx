@@ -5,6 +5,8 @@ import { getChannelNames } from '../core/ColorSpaces';
 import { predict_name, MAX_PRED } from '../core/Predictions';
 import { WAVELETNO, getWaveletDisplayName } from '../core/Wavelets';
 import { Layers, Image as ImageIcon, Settings, Download, Copy } from 'lucide-react';
+import { HELP, type HelpEntry } from '../core/help';
+import { MaybeTooltip } from './controls/Tooltip';
 
 // One page for all three channels: rows are parameters, columns are channels,
 // labeled by what they carry in the active colorspace (mixer-style layout).
@@ -69,10 +71,12 @@ const MSlider: React.FC<{
     </div>
 );
 
-const RowLabel: React.FC<{ children: React.ReactNode; title?: string }> = ({ children, title }) => (
-    <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-wide pr-1 leading-tight" title={title}>
-        {children}
-    </div>
+const RowLabel: React.FC<{ children: React.ReactNode; help?: HelpEntry }> = ({ children, help }) => (
+    <MaybeTooltip help={help}>
+        <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-wide pr-1 leading-tight cursor-help">
+            {children}
+        </div>
+    </MaybeTooltip>
 );
 
 const SectionHeader: React.FC<{ icon: React.ReactNode; children: React.ReactNode }> = ({ icon, children }) => (
@@ -157,21 +161,21 @@ export const ChannelMatrix: React.FC = () => {
 
             <div className="grid grid-cols-[5rem_repeat(3,1fr)] gap-x-2 gap-y-2.5 items-center">
                 <SectionHeader icon={<Layers className="w-3 h-3" />}>Segmentation</SectionHeader>
-                <RowLabel>Min block</RowLabel>
+                <RowLabel help={HELP.minBlock}>Min block</RowLabel>
                 {sliders(ch => log2i(config.min_block_size[ch]), 1, 9, v => `${1 << v}px`, (c, i, v) => (c.min_block_size[i] = 1 << v))}
-                <RowLabel>Max block</RowLabel>
+                <RowLabel help={HELP.maxBlock}>Max block</RowLabel>
                 {sliders(ch => log2i(config.max_block_size[ch]), 1, 9, v => `${1 << v}px`, (c, i, v) => (c.max_block_size[i] = 1 << v))}
-                <RowLabel title="Lower splits more aggressively into small blocks">Threshold</RowLabel>
+                <RowLabel help={HELP.threshold}>Threshold</RowLabel>
                 {sliders(ch => Math.round(config.segmentation_precision[ch]), 5, 250, v => `${v}`, (c, i, v) => (c.segmentation_precision[i] = v))}
 
                 <SectionHeader icon={<ImageIcon className="w-3 h-3" />}>Prediction</SectionHeader>
-                <RowLabel>Method</RowLabel>
+                <RowLabel help={HELP.prediction}>Method</RowLabel>
                 {selects(ch => config.prediction_method[ch], PREDICTION_OPTIONS, (c, i, v) => (c.prediction_method[i] = v))}
 
                 <SectionHeader icon={<Settings className="w-3 h-3" />}>Quantization</SectionHeader>
-                <RowLabel title="Residuals are divided by value/2 before encoding">Value</RowLabel>
+                <RowLabel help={HELP.quantization}>Value</RowLabel>
                 {sliders(ch => config.quantization_value[ch], 0, 255, v => (v > 2 ? `÷${v / 2}` : 'off'), (c, i, v) => (c.quantization_value[i] = v))}
-                <RowLabel>Clamp</RowLabel>
+                <RowLabel help={HELP.clamping}>Clamp</RowLabel>
                 {selects(
                     ch => config.clamp_method[ch],
                     [
@@ -182,9 +186,9 @@ export const ChannelMatrix: React.FC = () => {
                 )}
 
                 <SectionHeader icon={<Layers className="w-3 h-3" />}>Wavelet transform</SectionHeader>
-                <RowLabel>Wavelet</RowLabel>
+                <RowLabel help={HELP.wavelet}>Wavelet</RowLabel>
                 {selects(ch => config.transform_method[ch], WAVELET_OPTIONS, (c, i, v) => (c.transform_method[i] = v))}
-                <RowLabel>Type</RowLabel>
+                <RowLabel help={HELP.transformType}>Type</RowLabel>
                 {selects(
                     ch => config.transform_type[ch],
                     [
@@ -194,13 +198,13 @@ export const ChannelMatrix: React.FC = () => {
                     ],
                     (c, i, v) => (c.transform_type[i] = v)
                 )}
-                <RowLabel title="Zeroes small wavelet coefficients (0 = off)">Compress</RowLabel>
+                <RowLabel help={HELP.compression}>Compress</RowLabel>
                 {sliders(ch => Math.round(config.transform_compress[ch]), 0, 255, v => `${v}`, (c, i, v) => (c.transform_compress[i] = v))}
-                <RowLabel title="Coefficient storage scale - lower is heavier degradation">Scale</RowLabel>
+                <RowLabel help={HELP.scale}>Scale</RowLabel>
                 {sliders(ch => log2i(config.transform_scale[ch]), 2, 24, v => `2^${v}`, (c, i, v) => (c.transform_scale[i] = Math.pow(2, v)))}
 
                 <SectionHeader icon={<Download className="w-3 h-3" />}>Final encoding</SectionHeader>
-                <RowLabel>Method</RowLabel>
+                <RowLabel help={HELP.encodingMethod}>Method</RowLabel>
                 {selects(
                     ch => config.encoding_method[ch],
                     [

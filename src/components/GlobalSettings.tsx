@@ -4,6 +4,7 @@ import { Select } from './controls/Select';
 import { Toggle } from './controls/Toggle';
 import { COLORSPACES, getColorSpaceName } from '../core/ColorSpaces';
 import { PresetManager } from './PresetManager';
+import { HELP } from '../core/help';
 import { Settings } from 'lucide-react';
 
 export const GlobalSettings: React.FC = () => {
@@ -18,15 +19,16 @@ export const GlobalSettings: React.FC = () => {
                 <PresetManager />
                 <Select
                     label="Color space"
+                    help={HELP.colorspace}
                     value={config.colorspace}
                     options={Object.values(COLORSPACES).map(v => ({ label: getColorSpaceName(v as number), value: v as number }))}
                     onChange={v => updateConfig(c => (c.colorspace = v))}
                 />
                 <Toggle
                     label="Separate channels"
+                    help={HELP.separateChannels}
                     checked={separateChannels}
                     onChange={setSeparateChannels}
-                    title="Off: one set of settings drives all three channels. On: tune each channel individually."
                 />
             </div>
         </div>

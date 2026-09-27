@@ -13,6 +13,7 @@ import {
 } from '../core/presets';
 import { Save, Trash2, Upload, Download } from 'lucide-react';
 import { downloadBlob, timestampedFilename } from '../core/imageio';
+import { HELP } from '../core/help';
 
 export const PresetManager: React.FC = () => {
     const { config, setConfig, separateChannels, setSeparateChannels, toast } = useApp();
@@ -97,7 +98,7 @@ export const PresetManager: React.FC = () => {
         <div className="space-y-2">
             <div className="flex gap-2 items-end">
                 <div className="flex-1 min-w-0">
-                    <Select label="Preset" value={selected} options={options} onChange={apply} />
+                    <Select label="Preset" help={HELP.preset} value={selected} options={options} onChange={apply} />
                 </div>
                 <button
                     onClick={() => setShowSave(s => !s)}

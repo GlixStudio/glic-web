@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { useApp } from '../core/AppContext';
 import { BLEND_MODES, type GlitchLayer } from '../core/layers';
 import { imageDataToThumbnail } from '../core/imageio';
+import { HELP } from '../core/help';
+import { Tooltip } from './controls/Tooltip';
 import {
     Eye,
     EyeOff,
@@ -191,17 +193,17 @@ export const LayersPanel: React.FC = () => {
             onPointerUp={e => e.stopPropagation()}
         >
             <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-zinc-800">
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                <Tooltip help={HELP.layersPanel}>
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400 cursor-help">
                     <Layers className="w-3 h-3" /> Layers
                 </span>
+                </Tooltip>
                 <div className="flex items-center gap-0.5">
-                    <button
-                        onClick={flatten}
-                        className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors"
-                        title="Flatten: bake the composite into a new baseline (undoable)"
-                    >
+                    <Tooltip help={HELP.flatten}>
+                    <button onClick={flatten} title="Flatten" className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors">
                         <Combine className="w-3.5 h-3.5" />
                     </button>
+                    </Tooltip>
                     <button
                         onClick={() => setCollapsed(true)}
                         className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors"
@@ -229,6 +231,7 @@ export const LayersPanel: React.FC = () => {
             {active && (
                 <div className="border-t border-zinc-800 p-2.5 space-y-2">
                     <div className="flex items-center gap-2">
+                        <Tooltip help={HELP.blendMode}>
                         <select
                             value={active.blendMode}
                             onChange={e => updateLayer(active.id, { blendMode: e.target.value as GlitchLayer['blendMode'] })}
@@ -241,10 +244,12 @@ export const LayersPanel: React.FC = () => {
                                 </option>
                             ))}
                         </select>
+                        </Tooltip>
                         <span className="text-[10px] font-mono text-zinc-400 w-8 text-right">
                             {opacityDraft ?? active.opacity}%
                         </span>
                     </div>
+                    <Tooltip help={HELP.layerOpacity}>
                     <input
                         type="range"
                         min={0}
@@ -254,10 +259,11 @@ export const LayersPanel: React.FC = () => {
                         onPointerUp={e => setOpacity(parseInt((e.target as HTMLInputElement).value), true)}
                         onKeyUp={e => setOpacity(parseInt((e.target as HTMLInputElement).value), true)}
                         className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                        title="Layer opacity"
                     />
+                    </Tooltip>
 
                     <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                        <Tooltip help={HELP.setMask}>
                         <button
                             onClick={() => {
                                 if (!selection) return;
@@ -266,18 +272,20 @@ export const LayersPanel: React.FC = () => {
                             }}
                             disabled={!selection}
                             className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors"
-                            title="Replace this layer's mask with the working selection"
                         >
                             Set mask
                         </button>
+                        </Tooltip>
+                        <Tooltip help={HELP.editMask}>
                         <button
                             onClick={() => active.mask && setSelection(active.mask.slice())}
                             disabled={!active.mask}
                             className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors"
-                            title="Load this layer's mask into the working selection for editing"
                         >
                             Edit mask
                         </button>
+                        </Tooltip>
+                        <Tooltip help={HELP.removeMask}>
                         <button
                             onClick={() =>
                                 updateLayer(active.id, {
@@ -287,10 +295,10 @@ export const LayersPanel: React.FC = () => {
                             }
                             disabled={!active.mask}
                             className="py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 disabled:opacity-40 transition-colors"
-                            title="Remove this layer's mask (full-frame)"
                         >
                             Remove
                         </button>
+                        </Tooltip>
                     </div>
                 </div>
             )}
