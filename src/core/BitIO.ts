@@ -1,7 +1,25 @@
+// Bit-level I/O matching the semantics of the jinahya bit-io library used by the
+// original GLIC (MSB-first within bytes; signed ints are two's complement in `bits` bits).
+
 export class BitOutput {
-    private buffer: number[] = [];
-    private currentByte: number = 0;
-    private bitCount: number = 0;
+    private buf: Uint8Array = new Uint8Array(4096);
+    private len = 0;
+    private currentByte = 0;
+    private bitCount = 0;
+
+    private ensure(extra: number) {
+        if (this.len + extra <= this.buf.length) return;
+        let cap = this.buf.length * 2;
+        while (cap < this.len + extra) cap *= 2;
+        const next = new Uint8Array(cap);
+        next.set(this.buf.subarray(0, this.len));
+        this.buf = next;
+    }
+
+    private pushByte(b: number) {
+        this.ensure(1);
+        this.buf[this.len++] = b & 0xff;
+    }
 
     writeBoolean(b: boolean) {
         this.writeBits(b ? 1 : 0, 1);
@@ -13,7 +31,7 @@ export class BitOutput {
             this.currentByte = (this.currentByte << 1) | bit;
             this.bitCount++;
             if (this.bitCount === 8) {
-                this.buffer.push(this.currentByte);
+                this.pushByte(this.currentByte);
                 this.currentByte = 0;
                 this.bitCount = 0;
             }
@@ -21,46 +39,46 @@ export class BitOutput {
     }
 
     writeInt(unsigned: boolean, bits: number, value: number) {
+        if (bits < 1 || bits > 32) throw new Error(`writeInt: invalid bit count ${bits}`);
         if (unsigned) {
             this.writeBits(value, bits);
         } else {
-            // Signed: assume 2's complement
-            // Mask to bits length
-            const mask = (1 << bits) - 1;
+            // two's complement truncated to `bits`
+            const mask = bits === 32 ? 0xffffffff : (1 << bits) - 1;
             this.writeBits(value & mask, bits);
         }
     }
 
     align(bytes: number) {
         if (this.bitCount > 0) {
-            this.currentByte <<= (8 - this.bitCount);
-            this.buffer.push(this.currentByte);
+            this.pushByte(this.currentByte << (8 - this.bitCount));
             this.currentByte = 0;
             this.bitCount = 0;
         }
-        while (this.buffer.length % bytes !== 0) {
-            this.buffer.push(0);
+        while (this.len % bytes !== 0) {
+            this.pushByte(0);
         }
     }
 
     toByteArray(): Uint8Array {
-        // Flush remaining bits if any (though align usually handles this)
         if (this.bitCount > 0) {
-            const tempByte = this.currentByte << (8 - this.bitCount);
-            return new Uint8Array([...this.buffer, tempByte]);
+            const res = new Uint8Array(this.len + 1);
+            res.set(this.buf.subarray(0, this.len));
+            res[this.len] = (this.currentByte << (8 - this.bitCount)) & 0xff;
+            return res;
         }
-        return new Uint8Array(this.buffer);
+        return this.buf.slice(0, this.len);
     }
 
     size(): number {
-        return this.buffer.length + (this.bitCount > 0 ? 1 : 0);
+        return this.len + (this.bitCount > 0 ? 1 : 0);
     }
 }
 
 export class BitInput {
     private data: Uint8Array;
-    private byteIndex: number = 0;
-    private bitIndex: number = 0; // 0-7, current bit position in byte (MSB first)
+    private byteIndex = 0;
+    private bitIndex = 0; // 0-7, MSB first
 
     constructor(data: Uint8Array) {
         this.data = data;
@@ -74,10 +92,10 @@ export class BitInput {
         let value = 0;
         for (let i = 0; i < bits; i++) {
             if (this.byteIndex >= this.data.length) {
-                throw new Error("EOF");
+                throw new Error('EOF');
             }
             const bit = (this.data[this.byteIndex] >>> (7 - this.bitIndex)) & 1;
-            value = (value << 1) | bit;
+            value = ((value << 1) | bit) >>> 0;
             this.bitIndex++;
             if (this.bitIndex === 8) {
                 this.byteIndex++;
@@ -88,17 +106,11 @@ export class BitInput {
     }
 
     readInt(unsigned: boolean, bits: number): number {
+        if (bits < 1 || bits > 32) throw new Error(`readInt: invalid bit count ${bits}`);
         const val = this.readBits(bits);
-        if (unsigned) {
-            return val;
-        } else {
-            // Sign extend
-            const signBit = 1 << (bits - 1);
-            if (val & signBit) {
-                return val - (1 << bits);
-            }
-            return val;
-        }
+        if (unsigned || bits === 32) return unsigned ? val : val | 0;
+        const signBit = 1 << (bits - 1);
+        return val & signBit ? val - (1 << bits) : val;
     }
 
     align(bytes: number) {
