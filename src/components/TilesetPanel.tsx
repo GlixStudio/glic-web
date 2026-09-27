@@ -149,15 +149,15 @@ export const TilesetPanel: React.FC = () => {
     };
 
     return (
-        <div className="border-t border-zinc-800 pt-4">
+        <div className="border-t border-line pt-4">
             <button
                 onClick={() => setExpanded(e => !e)}
                 className="w-full flex items-center justify-between mb-3 group"
             >
-                <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider group-hover:text-zinc-300 transition-colors">
+                <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider group-hover:text-ink transition-colors">
                     <Layers className="w-3 h-3" /> Tileset & animation
                 </div>
-                {expanded ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
+                {expanded ? <ChevronUp className="w-4 h-4 text-ink-2" /> : <ChevronDown className="w-4 h-4 text-ink-2" />}
             </button>
             {expanded && (
                 <div className="space-y-3">
@@ -170,7 +170,7 @@ export const TilesetPanel: React.FC = () => {
                     <button
                         onClick={generateZip}
                         disabled={busy}
-                        className="w-full py-2 rounded-lg font-bold text-sm bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white transition-all flex items-center justify-center gap-2"
+                        className="w-full py-2 rounded-lg font-bold text-sm bg-cream-2 hover:bg-white disabled:bg-cream-3 disabled:text-ink/30 text-ink border border-ink transition-all flex items-center justify-center gap-2"
                     >
                         <Download className="w-4 h-4" /> Tileset ZIP
                     </button>
@@ -187,18 +187,18 @@ export const TilesetPanel: React.FC = () => {
                     <Slider label="FPS" value={fps} min={1} max={60} onChange={setFps} />
                     <Slider label="Quality" value={quality} min={10} max={100} step={5} onChange={setQuality} />
                     {busy && progress > 0 && (
-                        <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden">
-                            <div className="bg-purple-500 h-full transition-all duration-300" style={{ width: `${progress}%` }} />
+                        <div className="w-full bg-cream-2 rounded-full h-2 overflow-hidden">
+                            <div className="bg-glx-orange h-full transition-all duration-300" style={{ width: `${progress}%` }} />
                         </div>
                     )}
                     <button
                         onClick={generateAnimation}
                         disabled={busy}
-                        className="w-full py-2 rounded-lg font-bold text-sm bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white transition-all flex items-center justify-center gap-2"
+                        className="w-full py-2 rounded-lg font-bold text-sm bg-cream-2 hover:bg-white disabled:bg-cream-3 disabled:text-ink/30 text-ink border border-ink transition-all flex items-center justify-center gap-2"
                     >
                         {busy ? (
                             <>
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <div className="w-4 h-4 border-2 border-ink/30 border-t-ink rounded-full animate-spin" />
                                 {progress > 0 ? `${progress}%` : 'Working…'}
                             </>
                         ) : (

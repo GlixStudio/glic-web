@@ -11,8 +11,8 @@ import { MaybeTooltip } from './controls/Tooltip';
 // One page for all three channels: rows are parameters, columns are channels,
 // labeled by what they carry in the active colorspace (mixer-style layout).
 
-const CH_ACCENTS = ['text-rose-400', 'text-emerald-400', 'text-sky-400'];
-const CH_DOTS = ['bg-rose-400', 'bg-emerald-400', 'bg-sky-400'];
+const CH_ACCENTS = ['text-rose-600', 'text-emerald-600', 'text-sky-600'];
+const CH_DOTS = ['bg-rose-600', 'bg-emerald-600', 'bg-sky-600'];
 
 const log2i = (v: number) => Math.round(Math.log2(Math.max(1, v)));
 
@@ -39,7 +39,7 @@ const MSelect: React.FC<{
         value={String(value)}
         title={title}
         onChange={e => onChange(Number(e.target.value))}
-        className="w-full min-w-0 bg-zinc-900 border border-zinc-800 text-zinc-200 text-[11px] rounded-md px-1.5 py-1.5 focus:outline-none focus:border-blue-500 hover:border-zinc-700 transition-colors"
+        className="w-full min-w-0 bg-cream-2 border border-line text-ink text-[11px] rounded-md px-1.5 py-1.5 focus:outline-none focus:border-glx-orange hover:border-ink transition-colors"
     >
         {options.map(o => (
             <option key={o.value} value={String(o.value)}>
@@ -65,22 +65,22 @@ const MSlider: React.FC<{
             step={step}
             value={value}
             onChange={e => onChange(parseFloat(e.target.value))}
-            className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+            className="w-full h-1.5 bg-cream-3 rounded-lg appearance-none cursor-pointer accent-glx-orange"
         />
-        <span className="text-[9px] text-zinc-500 font-mono text-center leading-none">{display}</span>
+        <span className="text-[9px] text-ink-2 font-mono text-center leading-none">{display}</span>
     </div>
 );
 
 const RowLabel: React.FC<{ children: React.ReactNode; help?: HelpEntry }> = ({ children, help }) => (
     <MaybeTooltip help={help}>
-        <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-wide pr-1 leading-tight cursor-help">
+        <div className="text-[10px] text-ink-2 font-medium uppercase tracking-wide pr-1 leading-tight cursor-help">
             {children}
         </div>
     </MaybeTooltip>
 );
 
 const SectionHeader: React.FC<{ icon: React.ReactNode; children: React.ReactNode }> = ({ icon, children }) => (
-    <div className="col-span-4 flex items-center gap-2 text-zinc-400 uppercase text-[10px] font-bold tracking-wider pt-3 pb-1 border-b border-zinc-800/60">
+    <div className="col-span-4 flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider pt-3 pb-1 border-b border-line">
         {icon} {children}
     </div>
 );
@@ -142,15 +142,15 @@ export const ChannelMatrix: React.FC = () => {
     return (
         <div>
             {/* sticky channel header */}
-            <div className="sticky top-0 z-10 bg-zinc-950 grid grid-cols-[5rem_repeat(3,1fr)] gap-x-2 pb-2 border-b border-zinc-800">
-                <div className="text-[9px] text-zinc-600 self-end pb-0.5">CHANNEL</div>
+            <div className="sticky top-0 z-10 bg-cream grid grid-cols-[5rem_repeat(3,1fr)] gap-x-2 pb-2 border-b border-line">
+                <div className="text-[9px] text-ink-2 self-end pb-0.5">CHANNEL</div>
                 {[0, 1, 2].map(ch => (
                     <div key={ch} className="flex items-center justify-center gap-1.5">
                         <span className={`w-1.5 h-1.5 rounded-full ${CH_DOTS[ch]}`} />
                         <span className={`text-sm font-black ${CH_ACCENTS[ch]}`}>{channelNames[ch]}</span>
                         <button
                             onClick={() => copyToOthers(ch)}
-                            className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                            className="p-1 text-ink-2 hover:text-ink transition-colors"
                             title={`Copy ${channelNames[ch]} settings to the other channels`}
                         >
                             <Copy className="w-3 h-3" />
@@ -217,7 +217,7 @@ export const ChannelMatrix: React.FC = () => {
             </div>
 
             {hasRandom && resolved && (
-                <p className="text-[10px] text-zinc-500 italic mt-3 leading-relaxed">
+                <p className="text-[10px] text-ink-2 italic mt-3 leading-relaxed">
                     last encode used:{' '}
                     {[0, 1, 2]
                         .map(

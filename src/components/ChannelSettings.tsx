@@ -43,8 +43,8 @@ export const ChannelSettings: React.FC = () => {
     return (
         <div className="flex flex-col gap-3">
             {/* Segmentation */}
-            <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
-                <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
+            <div className="space-y-2.5 pb-3 border-b border-line">
+                <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <Layers className="w-3 h-3" /> Segmentation
                 </div>
                 <Slider
@@ -78,8 +78,8 @@ export const ChannelSettings: React.FC = () => {
             </div>
 
             {/* Prediction */}
-            <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
-                <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
+            <div className="space-y-2.5 pb-3 border-b border-line">
+                <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <ImageIcon className="w-3 h-3" /> Prediction
                 </div>
                 <Select
@@ -92,8 +92,8 @@ export const ChannelSettings: React.FC = () => {
             </div>
 
             {/* Quantization */}
-            <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
-                <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
+            <div className="space-y-2.5 pb-3 border-b border-line">
+                <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <Settings className="w-3 h-3" /> Quantization
                 </div>
                 <Slider
@@ -118,8 +118,8 @@ export const ChannelSettings: React.FC = () => {
             </div>
 
             {/* Transformation */}
-            <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
-                <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
+            <div className="space-y-2.5 pb-3 border-b border-line">
+                <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <Layers className="w-3 h-3" /> Wavelet transform
                 </div>
                 <Select
@@ -140,7 +140,7 @@ export const ChannelSettings: React.FC = () => {
                     ]}
                     onChange={v => set((c, i) => (c.transform_type[i] = v))}
                 />
-                {resolvedNote && <p className="text-[10px] text-zinc-500 italic">{resolvedNote}</p>}
+                {resolvedNote && <p className="text-[10px] text-ink-2 italic">{resolvedNote}</p>}
                 <Slider
                     label="Compression"
                     help={HELP.compression}
@@ -162,8 +162,8 @@ export const ChannelSettings: React.FC = () => {
             </div>
 
             {/* Encoding */}
-            <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
-                <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
+            <div className="space-y-2.5 pb-3 border-b border-line">
+                <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <Download className="w-3 h-3" /> Final encoding
                 </div>
                 <Select

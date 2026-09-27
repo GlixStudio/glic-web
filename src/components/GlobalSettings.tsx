@@ -13,7 +13,7 @@ export const GlobalSettings: React.FC = () => {
     return (
         <div className="flex flex-col gap-4">
             <div className="space-y-3">
-                <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
+                <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <Settings className="w-3 h-3" /> Global
                 </div>
                 <PresetManager />

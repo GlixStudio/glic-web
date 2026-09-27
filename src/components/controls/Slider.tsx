@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { MaybeTooltip } from './Tooltip';
 import type { HelpEntry } from '../../core/help';
 
@@ -25,8 +25,13 @@ const ValuePill: React.FC<{
     onChange: (val: number) => void;
 }> = ({ value, min, max, step, format, onChange }) => {
     const [draft, setDraft] = useState<string | null>(null);
-
-    useEffect(() => setDraft(null), [value]);
+    // reset any in-progress edit when the value changes from outside
+    // (render-phase adjustment, per React's derived-state guidance)
+    const [lastValue, setLastValue] = useState(value);
+    if (value !== lastValue) {
+        setLastValue(value);
+        setDraft(null);
+    }
 
     if (format) {
         return (
