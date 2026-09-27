@@ -4,12 +4,15 @@ GLIC Web is a web-based vibe coded port of the **GLIC** (GLitch Image Codec) ima
 
 ## Features
 
-- Advanced wavelet-based image compression
-- Multiple color space transformations
-- Real-time image adjustments (HSL, brightness, contrast)
-- Tileset generation with animation support
-- Custom presets and configurations
-- Support for 68+ different wavelets (all might not operate well, we are working on it)
+- All 67 original JWave wavelets, bit-faithful to desktop GLIC (coefficients extracted from the exact JWave.jar the original ships with)
+- `.glic` files byte-compatible with desktop GLIC — encode here, decode there, databend in a hex editor, and re-import glitched files
+- Full decoder, including GLIC's "override header" glitch-decode trick
+- 16 color spaces, 18 block predictors, quad-tree segmentation, RAW/PACKED/RLE encodings
+- 144 bundled community presets + custom presets with JSON export/import
+- Parallel encoding across three worker threads with live progress and cancel
+- Viewer with zoom/pan, hold-to-compare, and segmentation visualization
+- Re-encode iteration, multi-level undo, real-time adjustments (hue/saturation/brightness/contrast)
+- Tileset generation with GIF/WebM animation export
 
 ## Links
 
