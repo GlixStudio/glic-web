@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../core/AppContext';
 import { GlobalSettings } from './GlobalSettings';
 import { ChannelSettings } from './ChannelSettings';
+import { ChannelMatrix } from './ChannelMatrix';
 import { FiltersPanel } from './FiltersPanel';
 import { TilesetPanel } from './TilesetPanel';
 import { ActionBar } from './ActionBar';
@@ -13,11 +14,15 @@ export const Sidebar: React.FC = () => {
     const [activeTab, setActiveTab] = useState(0);
     const [showAbout, setShowAbout] = useState(false);
 
-    const tabs = separateChannels ? ['Global', 'Ch 1', 'Ch 2', 'Ch 3'] : ['Global', 'Channels'];
+    const tabs = ['Global', 'Channels'];
     const tab = Math.min(activeTab, tabs.length - 1);
 
     return (
-        <div className="w-80 max-w-full bg-zinc-950 border-r border-zinc-900 flex flex-col h-full shadow-2xl z-20">
+        <div
+            className={`${
+                separateChannels ? 'w-[30rem]' : 'w-80'
+            } max-w-[94vw] bg-zinc-950 border-r border-zinc-900 flex flex-col h-full shadow-2xl z-20 transition-[width] duration-200`}
+        >
             <div className="px-5 py-4 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between">
                 <div>
                     <h1 className="text-xl font-black text-white tracking-tighter">
@@ -52,13 +57,7 @@ export const Sidebar: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-zinc-950">
                 <div className="p-4 space-y-4">
-                    {tab === 0 ? (
-                        <GlobalSettings />
-                    ) : separateChannels ? (
-                        <ChannelSettings ch={tab - 1} applyToAll={false} />
-                    ) : (
-                        <ChannelSettings ch={0} applyToAll={true} />
-                    )}
+                    {tab === 0 ? <GlobalSettings /> : separateChannels ? <ChannelMatrix /> : <ChannelSettings />}
 
                     <FiltersPanel />
                     <TilesetPanel />

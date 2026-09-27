@@ -4,7 +4,7 @@ import { Slider } from './controls/Slider';
 import { Select } from './controls/Select';
 import { predict_name, MAX_PRED } from '../core/Predictions';
 import { WAVELETNO, getWaveletDisplayName } from '../core/Wavelets';
-import { Layers, Image as ImageIcon, Settings, Download, Copy } from 'lucide-react';
+import { Layers, Image as ImageIcon, Settings, Download } from 'lucide-react';
 
 const log2i = (v: number) => Math.round(Math.log2(Math.max(1, v)));
 
@@ -22,40 +22,14 @@ const WAVELET_OPTIONS = [
     { label: getWaveletDisplayName(-1), value: -1 },
 ];
 
-interface Props {
-    /** channel to display; with separateChannels off, edits go to all channels */
-    ch: number;
-    applyToAll: boolean;
-}
-
-export const ChannelSettings: React.FC<Props> = ({ ch, applyToAll }) => {
+/** Linked-mode editor: one set of controls driving all three channels. */
+export const ChannelSettings: React.FC = () => {
     const { config, updateConfig, resolved } = useApp();
+    const ch = 0;
 
     const set = (fn: (c: typeof config, i: number) => void) =>
         updateConfig(c => {
-            if (applyToAll) {
-                for (let i = 0; i < 3; i++) fn(c, i);
-            } else {
-                fn(c, ch);
-            }
-        });
-
-    const copyToOthers = () =>
-        updateConfig(c => {
-            for (let i = 0; i < 3; i++) {
-                if (i === ch) continue;
-                c.min_block_size[i] = c.min_block_size[ch];
-                c.max_block_size[i] = c.max_block_size[ch];
-                c.segmentation_precision[i] = c.segmentation_precision[ch];
-                c.prediction_method[i] = c.prediction_method[ch];
-                c.quantization_value[i] = c.quantization_value[ch];
-                c.clamp_method[i] = c.clamp_method[ch];
-                c.transform_type[i] = c.transform_type[ch];
-                c.transform_method[i] = c.transform_method[ch];
-                c.transform_compress[i] = c.transform_compress[ch];
-                c.transform_scale[i] = c.transform_scale[ch];
-                c.encoding_method[i] = c.encoding_method[ch];
-            }
+            for (let i = 0; i < 3; i++) fn(c, i);
         });
 
     const resolvedNote =
@@ -67,16 +41,6 @@ export const ChannelSettings: React.FC<Props> = ({ ch, applyToAll }) => {
 
     return (
         <div className="flex flex-col gap-3">
-            {!applyToAll && (
-                <button
-                    onClick={copyToOthers}
-                    className="flex items-center justify-center gap-2 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 rounded-lg border border-zinc-800 transition-all"
-                    title="Copy this channel's settings to the other two channels"
-                >
-                    <Copy className="w-3 h-3" /> Copy to other channels
-                </button>
-            )}
-
             {/* Segmentation */}
             <div className="space-y-2.5 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800/50">
                 <div className="flex items-center gap-2 text-zinc-400 uppercase text-xs font-bold tracking-wider mb-2">
