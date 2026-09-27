@@ -24,6 +24,7 @@ export const ActionBar: React.FC = () => {
         cancel,
         importGlic,
         toast,
+        selection,
     } = useApp();
 
     const glicInputRef = useRef<HTMLInputElement>(null);
@@ -62,6 +63,9 @@ export const ActionBar: React.FC = () => {
 
     const saveGlic = () => {
         if (!encodedFile) return;
+        if (selection) {
+            toast('info', 'Note: the .glic stream contains the full-frame encode - the selection shapes the image, not the file');
+        }
         downloadBlob(
             new Blob([encodedFile.buffer as ArrayBuffer], { type: 'application/octet-stream' }),
             timestampedFilename('glic-output', 'glic')

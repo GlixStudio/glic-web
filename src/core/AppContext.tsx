@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useMemo, useRef, useStat
 import { CodecConfig, cloneConfig } from './Codec';
 import { glicEngine, type ChannelProgress } from './engine';
 import type { Segment } from './Planes';
+import { compositeWithMask, isEmptyMask, type Mask } from './selection';
 
 import { DEFAULT_FILTERS, type ImageFilters } from './filters';
 
@@ -43,6 +44,14 @@ interface AppState {
 
     canUndo: boolean;
 
+    /** active selection mask (image resolution) or null = whole image */
+    selection: Mask | null;
+    /** set/replace the mask; null clears (remembering it for reselect) */
+    setSelection: (mask: Mask | null) => void;
+    /** restore the last cleared selection */
+    reselect: () => void;
+    hasLastSelection: boolean;
+
     toasts: Toast[];
     toast: (kind: Toast['kind'], text: string) => void;
     dismissToast: (id: number) => void;
@@ -72,9 +81,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [filters, setFilters] = useState<ImageFilters>(DEFAULT_FILTERS);
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const [toasts, setToasts] = useState<Toast[]>([]);
+    const [selection, setSelectionState] = useState<Mask | null>(null);
+    const [lastSelection, setLastSelection] = useState<Mask | null>(null);
 
     const configRef = useRef(config);
     configRef.current = config;
+    const selectionRef = useRef(selection);
+    selectionRef.current = selection;
     const processedRef = useRef(processed);
     processedRef.current = processed;
     const encodedFileRef = useRef(encodedFile);
@@ -106,6 +119,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setResolved(null);
         setLastSegments(null);
         setHistory([]);
+        setSelectionState(null);
+        setLastSelection(null);
+    }, []);
+
+    const setSelection = useCallback((mask: Mask | null) => {
+        setSelectionState(prev => {
+            if (mask === null && prev) setLastSelection(prev);
+            return mask && isEmptyMask(mask) ? null : mask;
+        });
+    }, []);
+
+    const reselect = useCallback(() => {
+        setLastSelection(last => {
+            if (last) setSelectionState(last);
+            return last;
+        });
+    }, []);
+
+    /** blends the engine result over the encode source when a selection is active */
+    const applySelection = useCallback((source: ImageData, glitched: ImageData): ImageData => {
+        const mask = selectionRef.current;
+        if (!mask || mask.length !== glitched.width * glitched.height) return glitched;
+        return compositeWithMask(source, glitched, mask);
     }, []);
 
     const pushHistory = useCallback(() => {
@@ -130,7 +166,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setChannelProgress([...perChannel]);
                 });
                 if (remember) pushHistory();
-                setProcessed(res.preview);
+                setProcessed(applySelection(source, res.preview));
                 setEncodedFile(res.file);
                 setResolved(res.resolvedConfig);
                 setLastSegments(res.segments);
@@ -140,7 +176,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setChannelProgress(null);
             }
         },
-        [pushHistory]
+        [pushHistory, applySelection]
     );
 
     const encodeNow = useCallback(async () => {
@@ -176,8 +212,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     const res = await glicEngine.encode(source, configRef.current, (_pc, overall) => {
                         setProgress((i + overall) / times);
                     });
-                    source = res.preview;
-                    setProcessed(res.preview);
+                    source = applySelection(source, res.preview);
+                    setProcessed(source);
                     setEncodedFile(res.file);
                     setResolved(res.resolvedConfig);
                     setLastSegments(res.segments);
@@ -189,7 +225,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setProgress(null);
             }
         },
-        [processed, originalImage, pushHistory, toast]
+        [processed, originalImage, pushHistory, toast, applySelection]
     );
 
     const undo = useCallback(() => {
@@ -223,7 +259,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     (_pc, overall) => setProgress(overall)
                 );
                 pushHistory();
-                setProcessed(res.preview);
+                // with an active matching selection, decode lands inside the selection
+                const base = processedRef.current ?? originalImage;
+                const composited =
+                    base && base.width === res.width && base.height === res.height
+                        ? applySelection(base, res.preview)
+                        : res.preview;
+                setProcessed(composited);
                 setEncodedFile(bytes);
                 setLastSegments(res.segments);
                 if (!originalImage) setOriginalImage(res.preview);
@@ -235,7 +277,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setProgress(null);
             }
         },
-        [originalImage, separateChannels, pushHistory, toast]
+        [originalImage, separateChannels, pushHistory, toast, applySelection]
     );
 
     const value = useMemo<AppState>(
@@ -256,6 +298,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             filters,
             setFilters,
             canUndo: history.length > 0,
+            selection,
+            setSelection,
+            reselect,
+            hasLastSelection: lastSelection !== null,
             toasts,
             toast,
             dismissToast,
@@ -281,6 +327,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             channelProgress,
             filters,
             history.length,
+            selection,
+            setSelection,
+            reselect,
+            lastSelection,
             toasts,
             toast,
             dismissToast,
