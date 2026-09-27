@@ -375,7 +375,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const sel = selectionRef.current;
             if (idx >= 0) {
                 const existing = ls[idx];
-                const mask = sel ? sel.slice() : existing.mask;
+                // no selection = full frame; a stale mask must not survive a re-encode
+                const mask = sel ? sel.slice() : null;
                 const next = [...ls];
                 next[idx] = {
                     ...existing,

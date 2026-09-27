@@ -81,7 +81,7 @@ export const HELP = {
     // --- actions ---
     encode: {
         title: 'Encode',
-        body: 'Runs the codec into the active layer (creates Layer 1 if there is none). The current selection becomes that layer’s mask, so only the selected region shows the glitch.',
+        body: 'Runs the codec into the active layer (creates Layer 1 if there is none). The current selection becomes that layer’s mask, so only the selected region shows the glitch. With no selection the layer covers the full frame, replacing any earlier mask.',
         shortcut: 'E',
     },
     newLayer: {
