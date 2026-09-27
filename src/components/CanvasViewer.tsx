@@ -1,244 +1,326 @@
-import React, { useRef, useEffect, useState } from "react";
-import { useApp } from "../core/AppContext";
-import { Upload, RefreshCw } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useApp } from '../core/AppContext';
+import { filtersToCss } from '../core/filters';
+import { visualizeSegmentation } from '../core/visualize';
+import { fileToImageData } from '../core/imageio';
+import { Upload, RefreshCw, Maximize, Grid3x3, Eye, ZoomIn, ZoomOut } from 'lucide-react';
+
+const isEditableTarget = (e: KeyboardEvent) =>
+    ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName);
 
 export const CanvasViewer: React.FC = () => {
-  const {
-    originalImage,
-    setOriginalImage,
-    processedImage,
-    setProcessedImage,
-    setEncodedBlob,
-    filters,
-  } = useApp();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const changeImageInputRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [displaySize, setDisplaySize] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
+    const { originalImage, processed, resolved, lastSegments, filters, loadImage, importGlic, toast } = useApp();
 
-  // Calculate display size to fit container while maintaining aspect ratio
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) {
-      // Defer state update to avoid synchronous setState in effect
-      requestAnimationFrame(() => {
-        if (!originalImage && !processedImage) {
-          setDisplaySize(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const changeImageInputRef = useRef<HTMLInputElement>(null);
+
+    const [isDragging, setIsDragging] = useState(false);
+    const [comparing, setComparing] = useState(false);
+    const [showSegmentation, setShowSegmentation] = useState(false);
+    const [zoom, setZoom] = useState<number | null>(null); // null = fit
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [panning, setPanning] = useState(false);
+    const dragState = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+
+    const segmentationView = useMemo(() => {
+        if (!showSegmentation || !processed || !lastSegments || !resolved) return null;
+        try {
+            return visualizeSegmentation(processed, lastSegments, resolved.colorspace);
+        } catch {
+            return null;
         }
-      });
-      return;
-    }
+    }, [showSegmentation, processed, lastSegments, resolved]);
 
-    const updateDisplaySize = () => {
-      const containerWidth = container.clientWidth;
-      const containerHeight = container.clientHeight;
+    const displayed: ImageData | null = comparing
+        ? originalImage
+        : (showSegmentation ? segmentationView : null) ?? processed ?? originalImage;
 
-      if (
-        canvas.width > 0 &&
-        canvas.height > 0 &&
-        (originalImage || processedImage)
-      ) {
-        const aspectRatio = canvas.width / canvas.height;
-        const containerAspectRatio = containerWidth / containerHeight;
+    // draw the active ImageData
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas || !displayed) return;
+        if (canvas.width !== displayed.width) canvas.width = displayed.width;
+        if (canvas.height !== displayed.height) canvas.height = displayed.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.putImageData(displayed, 0, 0);
+    }, [displayed]);
 
-        let displayWidth: number;
-        let displayHeight: number;
+    // fit-to-container display size
+    const hasImage = displayed !== null;
+    const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const ro = new ResizeObserver(() => {
+            setContainerSize({ w: container.clientWidth, h: container.clientHeight });
+        });
+        ro.observe(container);
+        return () => ro.disconnect();
+    }, [hasImage]); // re-observe when the container mounts
 
-        if (aspectRatio > containerAspectRatio) {
-          // Image is wider - fit to width
-          displayWidth = containerWidth;
-          displayHeight = containerWidth / aspectRatio;
-        } else {
-          // Image is taller - fit to height
-          displayHeight = containerHeight;
-          displayWidth = containerHeight * aspectRatio;
-        }
+    const imgW = displayed?.width ?? 0;
+    const imgH = displayed?.height ?? 0;
+    const fitScale =
+        imgW && containerSize.w && containerSize.h
+            ? Math.min(containerSize.w / imgW, containerSize.h / imgH, 1)
+            : 1;
+    const scale = zoom ?? fitScale;
 
-        setDisplaySize({ width: displayWidth, height: displayHeight });
-      } else {
-        setDisplaySize(null);
-      }
+    const clampPan = useCallback(
+        (p: { x: number; y: number }, s: number) => {
+            const maxX = Math.max(0, (imgW * s - containerSize.w) / 2 + 32);
+            const maxY = Math.max(0, (imgH * s - containerSize.h) / 2 + 32);
+            return {
+                x: Math.min(maxX, Math.max(-maxX, p.x)),
+                y: Math.min(maxY, Math.max(-maxY, p.y)),
+            };
+        },
+        [imgW, imgH, containerSize]
+    );
+
+    const setZoomClamped = useCallback(
+        (z: number | null) => {
+            setZoom(z === null ? null : Math.min(32, Math.max(0.05, z)));
+            if (z === null) setPan({ x: 0, y: 0 });
+        },
+        []
+    );
+
+    const onWheel = useCallback(
+        (e: React.WheelEvent) => {
+            if (!displayed) return;
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+            setZoomClamped((zoom ?? fitScale) * factor);
+        },
+        [displayed, zoom, fitScale, setZoomClamped]
+    );
+
+    const onPointerDown = (e: React.PointerEvent) => {
+        if (!displayed) return;
+        (e.target as Element).setPointerCapture(e.pointerId);
+        dragState.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
+        setPanning(true);
+    };
+    const onPointerMove = (e: React.PointerEvent) => {
+        const d = dragState.current;
+        if (!d) return;
+        setPan(clampPan({ x: d.panX + e.clientX - d.startX, y: d.panY + e.clientY - d.startY }, scale));
+    };
+    const onPointerUp = () => {
+        dragState.current = null;
+        setPanning(false);
     };
 
-    // Defer initial update to avoid synchronous setState
-    requestAnimationFrame(updateDisplaySize);
+    // keyboard: C hold-to-compare, F fit/100%
+    useEffect(() => {
+        const down = (e: KeyboardEvent) => {
+            if (isEditableTarget(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+            if (e.key === 'c' || e.key === 'C') setComparing(true);
+            if (e.key === 'f' || e.key === 'F') setZoomClamped(zoom === null ? 1 : null);
+        };
+        const up = (e: KeyboardEvent) => {
+            if (e.key === 'c' || e.key === 'C') setComparing(false);
+        };
+        window.addEventListener('keydown', down);
+        window.addEventListener('keyup', up);
+        return () => {
+            window.removeEventListener('keydown', down);
+            window.removeEventListener('keyup', up);
+        };
+    }, [zoom, setZoomClamped]);
 
-    const resizeObserver = new ResizeObserver(updateDisplaySize);
-    resizeObserver.observe(container);
+    const handleFile = useCallback(
+        async (file: File) => {
+            if (file.name.toLowerCase().endsWith('.glic')) {
+                const buf = await file.arrayBuffer();
+                await importGlic(new Uint8Array(buf), false);
+                return;
+            }
+            if (!file.type.startsWith('image/')) {
+                toast('error', 'Unsupported file type');
+                return;
+            }
+            try {
+                loadImage(await fileToImageData(file));
+            } catch {
+                toast('error', 'Could not load image');
+            }
+        },
+        [importGlic, loadImage, toast]
+    );
 
-    return () => resizeObserver.disconnect();
-  }, [originalImage, processedImage]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d", { alpha: false });
-    if (!ctx) return;
-
-    // Disable image smoothing for pixel-perfect rendering
-    ctx.imageSmoothingEnabled = false;
-
-    if (processedImage) {
-      const img = new Image();
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-      };
-      img.src = processedImage;
-    } else if (originalImage) {
-      canvas.width = originalImage.width;
-      canvas.height = originalImage.height;
-      ctx.putImageData(originalImage, 0, 0);
-    } else {
-      // Clear
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-  }, [originalImage, processedImage]);
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      loadImage(file);
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) loadImage(file);
-  };
-
-  const loadImage = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d", { alpha: false });
-        if (ctx) {
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, img.width, img.height);
-          setOriginalImage(imageData);
-          // Clear processed image and encoded blob when changing image
-          setProcessedImage(null);
-          setEncodedBlob(null);
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  return (
-    <div
-      className={`w-full h-full flex items-center justify-center relative bg-zinc-900/50 ${
-        isDragging ? "bg-blue-500/10" : ""
-      }`}
-      onDragOver={(e) => {
+    const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
-        setIsDragging(true);
-      }}
-      onDragLeave={() => setIsDragging(false)}
-      onDrop={handleDrop}
-    >
-      {!originalImage && !processedImage ? (
+        setIsDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+    };
+
+    const showFilters = !comparing && processed && !showSegmentation;
+
+    return (
         <div
-          className={`text-center p-12 border-2 border-dashed rounded-2xl flex flex-col items-center gap-6 transition-all ${
-            isDragging
-              ? "border-blue-500 bg-blue-500/5"
-              : "border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800/50"
-          }`}
-        >
-          <div className="p-4 bg-zinc-800 rounded-full">
-            <Upload
-              className={`w-8 h-8 ${
-                isDragging ? "text-blue-500" : "text-zinc-400"
-              }`}
-            />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-lg font-bold text-zinc-200">Upload an Image</h3>
-            <p className="text-zinc-500 text-sm">
-              Drag & drop or click to browse
-            </p>
-          </div>
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            id="file-upload"
-            onChange={handleFileSelect}
-          />
-          <label
-            htmlFor="file-upload"
-            className="px-6 py-2.5 bg-zinc-100 text-zinc-900 font-bold rounded-lg hover:bg-white cursor-pointer transition-colors shadow-lg shadow-zinc-900/20"
-          >
-            Select File
-          </label>
-        </div>
-      ) : (
-        <div
-          ref={containerRef}
-          className="relative w-[95%] h-[95%] flex items-center justify-center shadow-2xl shadow-black/50"
-        >
-          <canvas
-            ref={canvasRef}
-            style={{
-              display: originalImage || processedImage ? "block" : "none",
-              imageRendering: "pixelated",
-              width: displaySize ? `${displaySize.width}px` : "auto",
-              height: displaySize ? `${displaySize.height}px` : "auto",
-              maxWidth: "100%",
-              maxHeight: "100%",
-              filter: processedImage
-                ? `hue-rotate(${filters.hue}deg) saturate(${filters.saturation}%) brightness(${filters.brightness}%) contrast(${filters.contrast}%)`
-                : "none",
+            className={`w-full h-full flex items-center justify-center relative bg-zinc-900/50 overflow-hidden ${
+                isDragging ? 'bg-blue-500/10' : ''
+            }`}
+            onDragOver={e => {
+                e.preventDefault();
+                setIsDragging(true);
             }}
-          />
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+        >
+            {!displayed ? (
+                <div
+                    className={`text-center p-12 border-2 border-dashed rounded-2xl flex flex-col items-center gap-6 transition-all ${
+                        isDragging
+                            ? 'border-blue-500 bg-blue-500/5'
+                            : 'border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800/50'
+                    }`}
+                >
+                    <div className="p-4 bg-zinc-800 rounded-full">
+                        <Upload className={`w-8 h-8 ${isDragging ? 'text-blue-500' : 'text-zinc-400'}`} />
+                    </div>
+                    <div className="space-y-2">
+                        <h3 className="text-lg font-bold text-zinc-200">Drop an image or a .glic file</h3>
+                        <p className="text-zinc-500 text-sm">Drag & drop, or click to browse</p>
+                    </div>
+                    <input
+                        type="file"
+                        accept="image/*,.glic"
+                        className="hidden"
+                        id="file-upload"
+                        onChange={e => {
+                            const f = e.target.files?.[0];
+                            if (f) handleFile(f);
+                            e.target.value = '';
+                        }}
+                    />
+                    <label
+                        htmlFor="file-upload"
+                        className="px-6 py-2.5 bg-zinc-100 text-zinc-900 font-bold rounded-lg hover:bg-white cursor-pointer transition-colors shadow-lg shadow-zinc-900/20"
+                    >
+                        Select file
+                    </label>
+                </div>
+            ) : (
+                <div
+                    ref={containerRef}
+                    className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
+                    onWheel={onWheel}
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={onPointerUp}
+                    style={{ cursor: panning ? 'grabbing' : scale > fitScale ? 'grab' : 'default' }}
+                >
+                    <canvas
+                        ref={canvasRef}
+                        style={{
+                            imageRendering: 'pixelated',
+                            width: `${imgW * scale}px`,
+                            height: `${imgH * scale}px`,
+                            transform: `translate(${pan.x}px, ${pan.y}px)`,
+                            filter: showFilters ? filtersToCss(filters) : 'none',
+                            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+                        }}
+                    />
 
-          {/* Change Image Button - appears when an image is loaded */}
-          {(originalImage || processedImage) && (
-            <div className="absolute top-4 right-4 z-10">
-              <input
-                ref={changeImageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                id="change-image-upload"
-                onChange={(e) => {
-                  handleFileSelect(e);
-                  // Reset input so same file can be selected again
-                  if (e.target) {
-                    e.target.value = "";
-                  }
-                }}
-              />
-              <button
-                onClick={() => {
-                  changeImageInputRef.current?.click();
-                }}
-                className="px-4 py-2 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 font-bold rounded-lg cursor-pointer transition-all flex items-center gap-2 shadow-lg border border-zinc-700 hover:border-zinc-600 backdrop-blur-sm"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Change Image
-              </button>
-            </div>
-          )}
+                    {/* toolbar */}
+                    <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                        <div className="flex items-center bg-zinc-900/90 border border-zinc-700 rounded-lg backdrop-blur-sm overflow-hidden">
+                            <button
+                                onClick={() => setZoomClamped((zoom ?? fitScale) / 1.2)}
+                                className="p-2 text-zinc-300 hover:bg-zinc-800 transition-colors"
+                                title="Zoom out"
+                            >
+                                <ZoomOut className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setZoomClamped(zoom === null ? 1 : null)}
+                                className="px-2 py-2 text-xs font-mono text-zinc-300 hover:bg-zinc-800 transition-colors min-w-[3.5rem]"
+                                title="Toggle fit / 100% (F)"
+                            >
+                                {Math.round(scale * 100)}%
+                            </button>
+                            <button
+                                onClick={() => setZoomClamped((zoom ?? fitScale) * 1.2)}
+                                className="p-2 text-zinc-300 hover:bg-zinc-800 transition-colors"
+                                title="Zoom in"
+                            >
+                                <ZoomIn className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setZoomClamped(null)}
+                                className="p-2 text-zinc-300 hover:bg-zinc-800 transition-colors border-l border-zinc-700"
+                                title="Fit to window"
+                            >
+                                <Maximize className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {processed && originalImage && (
+                            <button
+                                onPointerDown={e => {
+                                    e.stopPropagation();
+                                    setComparing(true);
+                                }}
+                                onPointerUp={() => setComparing(false)}
+                                onPointerLeave={() => setComparing(false)}
+                                className={`p-2 rounded-lg border backdrop-blur-sm transition-colors ${
+                                    comparing
+                                        ? 'bg-blue-600 border-blue-500 text-white'
+                                        : 'bg-zinc-900/90 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+                                }`}
+                                title="Hold to compare with source (C)"
+                            >
+                                <Eye className="w-4 h-4" />
+                            </button>
+                        )}
+
+                        {processed && lastSegments && (
+                            <button
+                                onClick={() => setShowSegmentation(s => !s)}
+                                className={`p-2 rounded-lg border backdrop-blur-sm transition-colors ${
+                                    showSegmentation
+                                        ? 'bg-blue-600 border-blue-500 text-white'
+                                        : 'bg-zinc-900/90 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+                                }`}
+                                title="Segmentation view (blocks flooded with their center value)"
+                            >
+                                <Grid3x3 className="w-4 h-4" />
+                            </button>
+                        )}
+
+                        <button
+                            onClick={() => changeImageInputRef.current?.click()}
+                            className="p-2 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 rounded-lg border border-zinc-700 backdrop-blur-sm transition-colors"
+                            title="Change image"
+                        >
+                            <RefreshCw className="w-4 h-4" />
+                        </button>
+                        <input
+                            ref={changeImageInputRef}
+                            type="file"
+                            accept="image/*,.glic"
+                            className="hidden"
+                            onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (f) handleFile(f);
+                                e.target.value = '';
+                            }}
+                        />
+                    </div>
+
+                    {/* status line */}
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-zinc-900/80 border border-zinc-800 rounded-full text-[11px] text-zinc-400 backdrop-blur-sm pointer-events-none">
+                        {comparing ? 'source' : showSegmentation ? 'segmentation' : processed ? 'processed' : 'source'} ·{' '}
+                        {imgW}×{imgH}
+                    </div>
+                </div>
+            )}
         </div>
-      )}
-
-      {/* Overlay info or controls could go here */}
-    </div>
-  );
+    );
 };
