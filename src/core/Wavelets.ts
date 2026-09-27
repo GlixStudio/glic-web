@@ -209,7 +209,10 @@ export class WaveletTransform {
 
 /**
  * JWave CompressorMagnitude applied to a 2D block: zeroes every coefficient whose
- * magnitude is below (sum of |coefficients|) * threshold.
+ * magnitude is below (MEAN of |coefficients|) * threshold. Verified against the
+ * actual jar (CompTest: [[1,2],[3,4]] reports magnitude 2.5) - the decompiler had
+ * dropped the division, and sum-semantics wiped whole blocks flat for any
+ * compression setting above ~20.
  */
 export class CompressorMagnitude {
     threshold: number;
@@ -221,8 +224,10 @@ export class CompressorMagnitude {
 
     /** In-place over data[0..len). */
     compress(data: Float64Array, len: number) {
+        if (len === 0) return;
         let magnitude = 0.0;
         for (let i = 0; i < len; i++) magnitude += Math.abs(data[i]);
+        magnitude /= len;
         const cut = magnitude * this.threshold;
         for (let i = 0; i < len; i++) {
             if (Math.abs(data[i]) < cut) data[i] = 0.0;

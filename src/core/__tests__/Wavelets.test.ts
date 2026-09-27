@@ -109,16 +109,23 @@ describe('small blocks', () => {
 });
 
 describe('CompressorMagnitude', () => {
-    it('zeroes below sum(|v|) * threshold, keeps at-or-above', () => {
-        const data = new Float64Array([1, -2, 3, -4]); // sum |v| = 10
-        const c = new CompressorMagnitude(0.25); // cut = 2.5
+    it('zeroes below mean(|v|) * threshold, keeps at-or-above (verified vs real jar)', () => {
+        const data = new Float64Array([1, -2, 3, -4]); // mean |v| = 2.5
+        const c = new CompressorMagnitude(1); // cut = 2.5
         c.compress(data, data.length);
         expect(Array.from(data)).toEqual([0, 0, 3, -4]);
     });
 
+    it('matches the jar reference case: [[1,2],[3,4]] at threshold 0.5 keeps 2,3,4', () => {
+        const data = new Float64Array([1, 2, 3, 4]); // mean = 2.5, cut = 1.25
+        const c = new CompressorMagnitude(0.5);
+        c.compress(data, data.length);
+        expect(Array.from(data)).toEqual([0, 2, 3, 4]);
+    });
+
     it('boundary: |v| exactly equal to cut is kept (JWave uses >=)', () => {
-        const data = new Float64Array([2, 2, 2, 2]); // sum = 8
-        const c = new CompressorMagnitude(0.25); // cut = 2 -> all kept
+        const data = new Float64Array([2, 2, 2, 2]); // mean = 2 -> cut = 2 at threshold 1
+        const c = new CompressorMagnitude(1);
         c.compress(data, data.length);
         expect(Array.from(data)).toEqual([2, 2, 2, 2]);
     });
