@@ -1,4 +1,7 @@
-import { Planes, type Segment } from './Planes';
+// Faithful port of the original GLIC segmentation.pde (quad-tree with random-sampled
+// standard deviation as the split criterion).
+
+import { Planes, type Segment, newSegment } from './Planes';
 import { BitOutput, BitInput } from './BitIO';
 
 export const makeSegmentation = (
@@ -39,16 +42,7 @@ const segment = (
         segment(segm_out, s, p, pno, x + mid, y + mid, mid, min_size, max_size, thr);
     } else {
         segm_out.writeBoolean(false);
-        s.push({
-            x,
-            y,
-            size,
-            pred_type: 0, // PRED_NONE
-            angle: -1,
-            refa: -1,
-            refx: 32767, // Short.MAX_VALUE
-            refy: 32767
-        });
+        s.push(newSegment(x, y, size));
     }
 };
 
@@ -72,7 +66,7 @@ const readSegmentRecursive = (
     try {
         decision = segm_in.readBoolean();
     } catch {
-        decision = false;
+        decision = false; // EOF-tolerant, like the original (databending support)
     }
 
     if (decision && size > 2) {
@@ -82,16 +76,7 @@ const readSegmentRecursive = (
         readSegmentRecursive(segm_in, s, p, x, y + mid, mid);
         readSegmentRecursive(segm_in, s, p, x + mid, y + mid, mid);
     } else {
-        s.push({
-            x,
-            y,
-            size,
-            pred_type: 0,
-            angle: -1,
-            refa: -1,
-            refx: 32767,
-            refy: 32767
-        });
+        s.push(newSegment(x, y, size));
     }
 };
 

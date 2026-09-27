@@ -1,16 +1,14 @@
-import { encode, CodecConfig } from '../core/Codec';
+import { encode, CodecConfig, cloneConfig } from '../core/Codec';
 
-self.onmessage = async (e: MessageEvent) => {
+self.onmessage = (e: MessageEvent) => {
     const { type, imageData, config } = e.data;
 
     if (type === 'encode') {
         try {
-            // Reconstruct CodecConfig from plain object
-            const ccfg = new CodecConfig();
-            Object.assign(ccfg, config);
-
-            const { blob, preview } = await encode(imageData, ccfg);
-            self.postMessage({ type: 'success', blob, preview });
+            const ccfg = Object.assign(new CodecConfig(), config);
+            const { file, preview, resolvedConfig } = encode(imageData, cloneConfig(ccfg));
+            const blob = new Blob([file.buffer as ArrayBuffer], { type: 'application/octet-stream' });
+            self.postMessage({ type: 'success', blob, preview, resolvedConfig });
         } catch (error) {
             self.postMessage({ type: 'error', error: (error as Error).message });
         }

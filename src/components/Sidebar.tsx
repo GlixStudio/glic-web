@@ -4,7 +4,7 @@ import { Slider } from './controls/Slider';
 import { Select } from './controls/Select';
 import { COLORSPACES, getColorSpaceName } from '../core/ColorSpaces';
 import { predict_name, MAX_PRED } from '../core/Predictions';
-import { WAVELETNO, getWaveletDisplayName } from '../core/Transformations';
+import { WAVELETNO, getWaveletDisplayName } from '../core/Wavelets';
 import { CodecConfig } from '../core/Codec';
 import { Play, Download, Settings, Layers, Image as ImageIcon, ChevronDown, ChevronUp, Undo2, Info } from 'lucide-react';
 import presetsData from '../core/presets.json';
