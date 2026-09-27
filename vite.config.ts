@@ -14,7 +14,8 @@ export default defineConfig({
         name: 'GLIX Encoder',
         short_name: 'GLIX',
         description: 'Glitch Image Codec',
-        theme_color: '#ffffff',
+        theme_color: '#f4efe4',
+        background_color: '#f4efe4',
         icons: [
           {
             src: 'favicon.png',
