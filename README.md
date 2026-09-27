@@ -16,6 +16,7 @@ GLIC Web is a web-based vibe coded port of the **GLIC** (GLitch Image Codec) ima
 - Viewer with zoom/pan, hold-to-compare, and segmentation visualization
 - Re-encode iteration, multi-level undo, real-time adjustments (hue/saturation/brightness/contrast)
 - Tileset generation with GIF/WebM animation export
+- Projects: File → Save keeps the whole piece (source, layer stack with masks and streams, codec settings) in your browser via IndexedDB — reopen anytime from File → Open; layers are bounded by a memory budget, not a fixed count
 - Built-in help: hover any control for a plain-language explanation, plus a first-run guided tour (restartable from Help & About)
 
 ## Links
