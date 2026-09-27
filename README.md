@@ -10,6 +10,8 @@ GLIC Web is a web-based vibe coded port of the **GLIC** (GLitch Image Codec) ima
 - 16 color spaces, 18 block predictors, quad-tree segmentation, RAW/PACKED/RLE encodings
 - 144 bundled community presets + custom presets with JSON export/import
 - Parallel encoding across three worker threads with live progress and cancel
+- Photoshop-style selection tools — rect/ellipse marquee, lasso, magic wand, mask brush, with add/subtract modes, feather, and invert — so encoding glitches only the selected region (soft-mask composited at full resolution, print-safe)
+- Channel mixer: in separate-channels mode all three channels sit side by side on one page, labeled by the active colorspace (H·W·B, Y·Cb·Cr, …)
 - Viewer with zoom/pan, hold-to-compare, and segmentation visualization
 - Re-encode iteration, multi-level undo, real-time adjustments (hue/saturation/brightness/contrast)
 - Tileset generation with GIF/WebM animation export

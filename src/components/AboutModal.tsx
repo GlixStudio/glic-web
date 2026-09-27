@@ -9,6 +9,17 @@ const SHORTCUTS: [string, string][] = [
     ['I', 'Import .glic file'],
     ['C (hold)', 'Compare with source image'],
     ['F', 'Fit image / 100% zoom toggle'],
+    ['V', 'Move / pan tool'],
+    ['M', 'Rect marquee (again: ellipse)'],
+    ['L', 'Lasso'],
+    ['W', 'Magic wand'],
+    ['B', 'Mask brush (Alt erases)'],
+    ['[ / ]', 'Brush size'],
+    ['A', 'Select all'],
+    ['X', 'Invert selection'],
+    ['D / Esc', 'Deselect'],
+    ['Shift / Alt drag', 'Add / subtract from selection'],
+    ['Space (hold)', 'Pan while a tool is active'],
 ];
 
 export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
