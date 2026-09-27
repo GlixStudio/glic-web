@@ -1,8 +1,8 @@
 import React from 'react';
 
 const SHORTCUTS: [string, string][] = [
-    ['E', 'Encode source image'],
-    ['R', 'Re-encode current result'],
+    ['E', 'Encode into the active layer'],
+    ['R', 'Encode into a new layer on top'],
     ['U', 'Undo last encode'],
     ['S', 'Save processed image (PNG)'],
     ['G', 'Save .glic file'],
@@ -50,6 +50,8 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                             <h3 className="text-zinc-100 font-bold mb-2">Features</h3>
                             <ul className="list-disc list-inside space-y-1 ml-2 text-zinc-400">
                                 <li>All 67 original JWave wavelets, bit-faithful to desktop GLIC</li>
+                                <li>Glitch layers with masks, opacity, and blend modes - non-destructive</li>
+                                <li>Selection tools: marquees, lasso, wand, brush, feather, mask import/export</li>
                                 <li>16 color spaces, 18 block predictors, quad-tree segmentation</li>
                                 <li>.glic files compatible with the original desktop GLIC</li>
                                 <li>Decode with overridden settings, iterate, databend-tolerant import</li>
