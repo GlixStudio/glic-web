@@ -1,6 +1,6 @@
 import React from 'react';
 import { type CombineMode, type SelectionTool, type ToolOptions } from '../core/selection';
-import { Hand, SquareDashed, CircleDashed, Lasso, Plus, Minus, Square, XCircle, RotateCcw, Blend } from 'lucide-react';
+import { Hand, SquareDashed, CircleDashed, Lasso, Wand2, Plus, Minus, Square, XCircle, RotateCcw, Blend } from 'lucide-react';
 
 interface ToolDef {
     id: SelectionTool;
@@ -14,6 +14,7 @@ const TOOLS: ToolDef[] = [
     { id: 'rect', icon: <SquareDashed className="w-4 h-4" />, label: 'Rectangular marquee', shortcut: 'M' },
     { id: 'ellipse', icon: <CircleDashed className="w-4 h-4" />, label: 'Elliptical marquee', shortcut: 'M again' },
     { id: 'lasso', icon: <Lasso className="w-4 h-4" />, label: 'Lasso', shortcut: 'L' },
+    { id: 'wand', icon: <Wand2 className="w-4 h-4" />, label: 'Magic wand', shortcut: 'W' },
 ];
 
 const MODES: { id: CombineMode; icon: React.ReactNode; label: string }[] = [
@@ -88,6 +89,33 @@ export const SelectionToolbar: React.FC<Props> = ({
                             </button>
                         ))}
                     </div>
+
+                    {tool === 'wand' && (
+                        <>
+                            <label className="flex flex-col gap-1 text-[10px] text-zinc-400 uppercase tracking-wide">
+                                <span className="flex justify-between">
+                                    Tolerance <span className="font-mono text-zinc-300">{options.tolerance}</span>
+                                </span>
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={255}
+                                    value={options.tolerance}
+                                    onChange={e => setOptions({ ...options, tolerance: parseInt(e.target.value) })}
+                                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                />
+                            </label>
+                            <label className="flex items-center justify-between text-[10px] text-zinc-400 uppercase tracking-wide cursor-pointer">
+                                Contiguous
+                                <input
+                                    type="checkbox"
+                                    checked={options.contiguous}
+                                    onChange={e => setOptions({ ...options, contiguous: e.target.checked })}
+                                    className="accent-blue-500"
+                                />
+                            </label>
+                        </>
+                    )}
 
                     <label className="flex flex-col gap-1 text-[10px] text-zinc-400 uppercase tracking-wide">
                         <span className="flex justify-between">

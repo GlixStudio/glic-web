@@ -7,6 +7,7 @@ import {
     rectMask,
     ellipseMask,
     lassoMask,
+    magicWand,
     combine,
     invertMask,
     feather,
@@ -25,7 +26,7 @@ const isEditableTarget = (e: KeyboardEvent) =>
     ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName);
 
 interface Gesture {
-    kind: 'rect' | 'ellipse' | 'lasso';
+    kind: 'rect' | 'ellipse' | 'lasso' | 'wand';
     mode: CombineMode;
     startImg: { x: number; y: number };
     lastImg: { x: number; y: number };
@@ -216,7 +217,7 @@ export const CanvasViewer: React.FC = () => {
         }
         const img = screenToImage(e.clientX, e.clientY);
         const screen = { x: e.clientX, y: e.clientY };
-        if (tool === 'rect' || tool === 'ellipse' || tool === 'lasso') {
+        if (tool === 'rect' || tool === 'ellipse' || tool === 'lasso' || tool === 'wand') {
             gesture.current = {
                 kind: tool,
                 mode: gestureMode(e),
@@ -268,6 +269,16 @@ export const CanvasViewer: React.FC = () => {
             if (moved) applyCommit(ellipseMask(imgW, imgH, g.startImg.x, g.startImg.y, g.lastImg.x, g.lastImg.y), g.mode);
         } else if (g.kind === 'lasso') {
             if (g.pointsImg.length >= 3) applyCommit(lassoMask(imgW, imgH, g.pointsImg), g.mode);
+        } else if (g.kind === 'wand') {
+            const sample = processed ?? originalImage;
+            const clicked =
+                Math.abs(g.lastScreen.x - g.startScreen.x) < 4 && Math.abs(g.lastScreen.y - g.startScreen.y) < 4;
+            if (sample && clicked) {
+                applyCommit(
+                    magicWand(sample, g.startImg.x, g.startImg.y, toolOptions.tolerance, toolOptions.contiguous),
+                    g.mode
+                );
+            }
         }
     };
 
@@ -325,6 +336,7 @@ export const CanvasViewer: React.FC = () => {
                 case 'v': setTool('move'); break;
                 case 'm': setTool(t => (t === 'rect' ? 'ellipse' : 'rect')); break;
                 case 'l': setTool('lasso'); break;
+                case 'w': setTool('wand'); break;
                 case 'a': selectAll(); break;
                 case 'x': invertSelection(); break;
                 case 'd': clearSelection(); break;

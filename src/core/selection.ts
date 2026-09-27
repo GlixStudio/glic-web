@@ -8,7 +8,7 @@
 export type Mask = Uint8ClampedArray;
 export type CombineMode = 'replace' | 'add' | 'subtract';
 
-export type SelectionTool = 'move' | 'rect' | 'ellipse' | 'lasso';
+export type SelectionTool = 'move' | 'rect' | 'ellipse' | 'lasso' | 'wand';
 
 export interface ToolOptions {
     mode: CombineMode;
