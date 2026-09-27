@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../core/AppContext';
-import { Play, Download, Undo2, Repeat, FileUp, X } from 'lucide-react';
+import { Play, Download, Undo2, Repeat, FileUp, X, Layers } from 'lucide-react';
 import {
     imageDataToCanvas,
     canvasToPngBlob,
@@ -18,13 +18,12 @@ export const ActionBar: React.FC = () => {
         canUndo,
         filters,
         encodeNow,
-        reEncode,
+        newLayerEncode,
         iterate,
         undo,
         cancel,
         importGlic,
         toast,
-        selection,
     } = useApp();
 
     const glicInputRef = useRef<HTMLInputElement>(null);
@@ -32,7 +31,7 @@ export const ActionBar: React.FC = () => {
     const [iterateCount, setIterateCount] = useState(5);
 
     // keyboard shortcuts (plain keys, ignored while typing in a field)
-    const actions = useRef({ encodeNow, reEncode, undo, saveImage: () => {}, saveGlic: () => {}, openImport: () => {} });
+    const actions = useRef({ encodeNow, newLayerEncode, undo, saveImage: () => {}, saveGlic: () => {}, openImport: () => {} });
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
@@ -40,7 +39,7 @@ export const ActionBar: React.FC = () => {
             const a = actions.current;
             switch (e.key.toLowerCase()) {
                 case 'e': e.preventDefault(); a.encodeNow(); break;
-                case 'r': e.preventDefault(); a.reEncode(); break;
+                case 'r': e.preventDefault(); a.newLayerEncode(); break;
                 case 'u': e.preventDefault(); a.undo(); break;
                 case 's': e.preventDefault(); a.saveImage(); break;
                 case 'g': e.preventDefault(); a.saveGlic(); break;
@@ -63,9 +62,7 @@ export const ActionBar: React.FC = () => {
 
     const saveGlic = () => {
         if (!encodedFile) return;
-        if (selection) {
-            toast('info', 'Note: the .glic stream contains the full-frame encode - the selection shapes the image, not the file');
-        }
+        toast('info', "Saved the active layer's full-frame stream (masks and blending live in the image, not the file)");
         downloadBlob(
             new Blob([encodedFile.buffer as ArrayBuffer], { type: 'application/octet-stream' }),
             timestampedFilename('glic-output', 'glic')
@@ -81,7 +78,7 @@ export const ActionBar: React.FC = () => {
     useEffect(() => {
         actions.current = {
             encodeNow,
-            reEncode,
+            newLayerEncode,
             undo,
             saveImage,
             saveGlic,
@@ -122,7 +119,7 @@ export const ActionBar: React.FC = () => {
                     }`}
                     onClick={encodeNow}
                     disabled={!originalImage || isProcessing}
-                    title="Encode the source image (E)"
+                    title="Encode into the active layer (E) - the current selection becomes its mask"
                 >
                     <Play className="w-4 h-4 fill-current" />
                     <span className="text-sm">ENCODE</span>
@@ -135,12 +132,12 @@ export const ActionBar: React.FC = () => {
                             ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
                             : 'bg-purple-600 text-white hover:bg-purple-500 shadow-lg shadow-purple-900/20'
                     }`}
-                    onClick={reEncode}
+                    onClick={newLayerEncode}
                     disabled={!processed || isProcessing}
-                    title="Feed the result back through the encoder (R)"
+                    title="Encode the current composite into a new layer on top (R)"
                 >
-                    <Repeat className="w-4 h-4" />
-                    <span className="text-sm">RE-ENCODE</span>
+                    <Layers className="w-4 h-4" />
+                    <span className="text-sm">NEW LAYER</span>
                     <span className="text-[10px] opacity-60 font-normal">R</span>
                 </button>
             </div>
@@ -148,13 +145,13 @@ export const ActionBar: React.FC = () => {
             <div className="flex gap-2">
                 <button
                     className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
-                        !processed || isProcessing
+                        !originalImage || isProcessing
                             ? 'text-zinc-600 bg-zinc-900 cursor-not-allowed'
                             : 'text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800'
                     }`}
                     onClick={() => iterate(iterateCount)}
-                    disabled={!processed || isProcessing}
-                    title={`Re-encode ${iterateCount} times in a row`}
+                    disabled={!originalImage || isProcessing}
+                    title={`Encode ${iterateCount} times in a row into the active layer`}
                 >
                     <Repeat className="w-3 h-3" />
                     Iterate ×
@@ -209,7 +206,7 @@ export const ActionBar: React.FC = () => {
                     }`}
                     onClick={saveGlic}
                     disabled={!encodedFile}
-                    title="Save the .glic file (G) - open it in desktop GLIC or databend it"
+                    title="Save the active layer's .glic stream (G) - open it in desktop GLIC or databend it"
                 >
                     <Download className="w-3 h-3" /> .glic
                     <span className="text-[9px] opacity-60">G</span>
