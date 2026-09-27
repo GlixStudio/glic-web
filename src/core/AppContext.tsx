@@ -140,6 +140,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setToasts(t => t.filter(x => x.id !== id));
     }, []);
 
+    /** one-time beginner hints, remembered per browser */
+    const onceHint = useCallback(
+        (key: string, text: string) => {
+            try {
+                if (localStorage.getItem(key)) return;
+                localStorage.setItem(key, '1');
+            } catch {
+                return;
+            }
+            toast('info', text);
+        },
+        [toast]
+    );
+
     const updateConfig = useCallback((fn: (c: CodecConfig) => void) => {
         const next = cloneConfig(configRef.current);
         fn(next);
@@ -155,7 +169,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setHistory([]);
         setSelectionState(null);
         setLastSelection(null);
-    }, []);
+        onceHint('glic_hint_load_v1', 'Image loaded - press E to encode, or pick a preset first');
+    }, [onceHint]);
 
     const setSelection = useCallback((mask: Mask | null) => {
         setSelectionState(prev => {
@@ -340,8 +355,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setLayers([...ls, layer]);
                 setActiveLayerIdState(layer.id);
             }
+            onceHint(
+                'glic_hint_encode_v1',
+                'Tip: draw a selection (M, W, or B) to glitch only part of the image - every encode lands on a layer you can re-tune'
+            );
         },
-        [snapshot]
+        [snapshot, onceHint]
     );
 
     const encodeNow = useCallback(async () => {
