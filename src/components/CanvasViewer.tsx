@@ -5,6 +5,8 @@ import { visualizeSegmentation } from '../core/visualize';
 import { fileToImageData } from '../core/imageio';
 import {
     rectMask,
+    ellipseMask,
+    lassoMask,
     combine,
     invertMask,
     feather,
@@ -23,12 +25,14 @@ const isEditableTarget = (e: KeyboardEvent) =>
     ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName);
 
 interface Gesture {
-    kind: 'rect';
+    kind: 'rect' | 'ellipse' | 'lasso';
     mode: CombineMode;
     startImg: { x: number; y: number };
     lastImg: { x: number; y: number };
     startScreen: { x: number; y: number };
     lastScreen: { x: number; y: number };
+    pointsImg: { x: number; y: number }[];
+    pointsScreen: { x: number; y: number }[];
 }
 
 export const CanvasViewer: React.FC = () => {
@@ -212,8 +216,17 @@ export const CanvasViewer: React.FC = () => {
         }
         const img = screenToImage(e.clientX, e.clientY);
         const screen = { x: e.clientX, y: e.clientY };
-        if (tool === 'rect') {
-            gesture.current = { kind: 'rect', mode: gestureMode(e), startImg: img, lastImg: img, startScreen: screen, lastScreen: screen };
+        if (tool === 'rect' || tool === 'ellipse' || tool === 'lasso') {
+            gesture.current = {
+                kind: tool,
+                mode: gestureMode(e),
+                startImg: img,
+                lastImg: img,
+                startScreen: screen,
+                lastScreen: screen,
+                pointsImg: [img],
+                pointsScreen: [screen],
+            };
         }
         setDraftTick(t => t + 1);
     };
@@ -228,6 +241,13 @@ export const CanvasViewer: React.FC = () => {
         if (!g) return;
         g.lastImg = screenToImage(e.clientX, e.clientY);
         g.lastScreen = { x: e.clientX, y: e.clientY };
+        if (g.kind === 'lasso') {
+            const prev = g.pointsScreen[g.pointsScreen.length - 1];
+            if (Math.abs(g.lastScreen.x - prev.x) + Math.abs(g.lastScreen.y - prev.y) > 2) {
+                g.pointsImg.push(g.lastImg);
+                g.pointsScreen.push(g.lastScreen);
+            }
+        }
         setDraftTick(t => t + 1);
     };
 
@@ -241,9 +261,13 @@ export const CanvasViewer: React.FC = () => {
         gesture.current = null;
         setDraftTick(t => t + 1);
         if (!g || !imgW) return;
+        const moved = Math.abs(g.lastImg.x - g.startImg.x) > 1 && Math.abs(g.lastImg.y - g.startImg.y) > 1;
         if (g.kind === 'rect') {
-            const moved = Math.abs(g.lastImg.x - g.startImg.x) > 1 && Math.abs(g.lastImg.y - g.startImg.y) > 1;
             if (moved) applyCommit(rectMask(imgW, imgH, g.startImg.x, g.startImg.y, g.lastImg.x, g.lastImg.y), g.mode);
+        } else if (g.kind === 'ellipse') {
+            if (moved) applyCommit(ellipseMask(imgW, imgH, g.startImg.x, g.startImg.y, g.lastImg.x, g.lastImg.y), g.mode);
+        } else if (g.kind === 'lasso') {
+            if (g.pointsImg.length >= 3) applyCommit(lassoMask(imgW, imgH, g.pointsImg), g.mode);
         }
     };
 
@@ -269,6 +293,19 @@ export const CanvasViewer: React.FC = () => {
         ctx.strokeStyle = '#fff';
         if (g.kind === 'rect') {
             ctx.strokeRect(Math.min(sx, lx), Math.min(sy, ly), Math.abs(lx - sx), Math.abs(ly - sy));
+        } else if (g.kind === 'ellipse') {
+            ctx.beginPath();
+            ctx.ellipse((sx + lx) / 2, (sy + ly) / 2, Math.abs(lx - sx) / 2, Math.abs(ly - sy) / 2, 0, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (g.kind === 'lasso') {
+            ctx.beginPath();
+            g.pointsScreen.forEach((p, i) => {
+                const px = p.x - cRect.left;
+                const py = p.y - cRect.top;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            });
+            ctx.stroke();
         }
     }, [draftTick]);
 
@@ -286,7 +323,8 @@ export const CanvasViewer: React.FC = () => {
                 case 'c': setComparing(true); break;
                 case 'f': setZoomClamped(zoom === null ? 1 : null); break;
                 case 'v': setTool('move'); break;
-                case 'm': setTool('rect'); break;
+                case 'm': setTool(t => (t === 'rect' ? 'ellipse' : 'rect')); break;
+                case 'l': setTool('lasso'); break;
                 case 'a': selectAll(); break;
                 case 'x': invertSelection(); break;
                 case 'd': clearSelection(); break;

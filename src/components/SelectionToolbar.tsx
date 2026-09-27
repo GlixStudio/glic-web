@@ -1,6 +1,6 @@
 import React from 'react';
 import { type CombineMode, type SelectionTool, type ToolOptions } from '../core/selection';
-import { Hand, SquareDashed, Plus, Minus, Square, XCircle, RotateCcw, Blend } from 'lucide-react';
+import { Hand, SquareDashed, CircleDashed, Lasso, Plus, Minus, Square, XCircle, RotateCcw, Blend } from 'lucide-react';
 
 interface ToolDef {
     id: SelectionTool;
@@ -12,6 +12,8 @@ interface ToolDef {
 const TOOLS: ToolDef[] = [
     { id: 'move', icon: <Hand className="w-4 h-4" />, label: 'Move / pan', shortcut: 'V' },
     { id: 'rect', icon: <SquareDashed className="w-4 h-4" />, label: 'Rectangular marquee', shortcut: 'M' },
+    { id: 'ellipse', icon: <CircleDashed className="w-4 h-4" />, label: 'Elliptical marquee', shortcut: 'M again' },
+    { id: 'lasso', icon: <Lasso className="w-4 h-4" />, label: 'Lasso', shortcut: 'L' },
 ];
 
 const MODES: { id: CombineMode; icon: React.ReactNode; label: string }[] = [
