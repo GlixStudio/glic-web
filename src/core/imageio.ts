@@ -41,6 +41,36 @@ export const imageDataToCanvas = (img: ImageData, filters?: ImageFilters): HTMLC
     return out;
 };
 
+/**
+ * Small preview dataURL of an image, optionally shown through a mask
+ * (unmasked areas become transparent over a dark ground).
+ */
+export const imageDataToThumbnail = (
+    img: ImageData,
+    mask: Uint8ClampedArray | null,
+    maxSize = 48
+): string => {
+    let shown = img;
+    if (mask && mask.length === img.width * img.height) {
+        const d = new Uint8ClampedArray(img.data);
+        for (let i = 0; i < mask.length; i++) {
+            d[i * 4 + 3] = Math.min(d[i * 4 + 3], mask[i]);
+        }
+        shown = new ImageData(d, img.width, img.height);
+    }
+    const scale = maxSize / Math.max(img.width, img.height);
+    const tw = Math.max(1, Math.round(img.width * scale));
+    const th = Math.max(1, Math.round(img.height * scale));
+    const out = document.createElement('canvas');
+    out.width = tw;
+    out.height = th;
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#18181b';
+    ctx.fillRect(0, 0, tw, th);
+    ctx.drawImage(imageDataToCanvas(shown), 0, 0, tw, th);
+    return out.toDataURL();
+};
+
 export const timestampedFilename = (prefix: string, extension: string) => {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
     return `${prefix}_${timestamp}.${extension}`;
