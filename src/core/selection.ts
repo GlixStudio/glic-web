@@ -8,6 +8,24 @@
 export type Mask = Uint8ClampedArray;
 export type CombineMode = 'replace' | 'add' | 'subtract';
 
+export type SelectionTool = 'move' | 'rect';
+
+export interface ToolOptions {
+    mode: CombineMode;
+    tolerance: number;
+    contiguous: boolean;
+    brushSize: number;
+    feather: number;
+}
+
+export const DEFAULT_TOOL_OPTIONS: ToolOptions = {
+    mode: 'replace',
+    tolerance: 32,
+    contiguous: true,
+    brushSize: 32,
+    feather: 0,
+};
+
 export const newMask = (w: number, h: number): Mask => new Uint8ClampedArray(w * h);
 
 const clampInt = (v: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(v)));
@@ -230,8 +248,8 @@ const boxBlurPass = (src: Float32Array, dst: Float32Array, w: number, h: number,
 export const feather = (mask: Mask, w: number, h: number, radius: number): Mask => {
     if (radius <= 0) return mask.slice();
     const r = Math.max(1, Math.round(radius / 3));
-    let a = Float32Array.from(mask);
-    let b = new Float32Array(mask.length);
+    const a = Float32Array.from(mask);
+    const b = new Float32Array(mask.length);
     for (let pass = 0; pass < 3; pass++) {
         boxBlurPass(a, b, w, h, r, true);
         boxBlurPass(b, a, w, h, r, false);

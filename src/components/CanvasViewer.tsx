@@ -3,15 +3,53 @@ import { useApp } from '../core/AppContext';
 import { filtersToCss } from '../core/filters';
 import { visualizeSegmentation } from '../core/visualize';
 import { fileToImageData } from '../core/imageio';
+import {
+    rectMask,
+    combine,
+    invertMask,
+    feather,
+    coverage,
+    maskOverlay,
+    DEFAULT_TOOL_OPTIONS,
+    type CombineMode,
+    type Mask,
+    type SelectionTool,
+    type ToolOptions,
+} from '../core/selection';
+import { SelectionToolbar } from './SelectionToolbar';
 import { Upload, RefreshCw, Maximize, Grid3x3, Eye, ZoomIn, ZoomOut } from 'lucide-react';
 
 const isEditableTarget = (e: KeyboardEvent) =>
     ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName);
 
+interface Gesture {
+    kind: 'rect';
+    mode: CombineMode;
+    startImg: { x: number; y: number };
+    lastImg: { x: number; y: number };
+    startScreen: { x: number; y: number };
+    lastScreen: { x: number; y: number };
+}
+
 export const CanvasViewer: React.FC = () => {
-    const { originalImage, processed, resolved, lastSegments, filters, loadImage, importGlic, toast } = useApp();
+    const {
+        originalImage,
+        processed,
+        resolved,
+        lastSegments,
+        filters,
+        loadImage,
+        importGlic,
+        toast,
+        selection,
+        setSelection,
+        reselect,
+        hasLastSelection,
+    } = useApp();
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const overlayRef = useRef<HTMLCanvasElement>(null);
+    const draftRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const changeImageInputRef = useRef<HTMLInputElement>(null);
 
@@ -21,7 +59,12 @@ export const CanvasViewer: React.FC = () => {
     const [zoom, setZoom] = useState<number | null>(null); // null = fit
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [panning, setPanning] = useState(false);
-    const dragState = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+    const [spaceHeld, setSpaceHeld] = useState(false);
+    const [tool, setTool] = useState<SelectionTool>('move');
+    const [toolOptions, setToolOptions] = useState<ToolOptions>(DEFAULT_TOOL_OPTIONS);
+    const panState = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+    const gesture = useRef<Gesture | null>(null);
+    const [draftTick, setDraftTick] = useState(0); // triggers draft canvas redraws
 
     const segmentationView = useMemo(() => {
         if (!showSegmentation || !processed || !lastSegments || !resolved) return null;
@@ -36,16 +79,31 @@ export const CanvasViewer: React.FC = () => {
         ? originalImage
         : (showSegmentation ? segmentationView : null) ?? processed ?? originalImage;
 
+    const imgW = displayed?.width ?? 0;
+    const imgH = displayed?.height ?? 0;
+
     // draw the active ImageData
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas || !displayed) return;
         if (canvas.width !== displayed.width) canvas.width = displayed.width;
         if (canvas.height !== displayed.height) canvas.height = displayed.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.putImageData(displayed, 0, 0);
+        canvas.getContext('2d')?.putImageData(displayed, 0, 0);
     }, [displayed]);
+
+    // draw the selection overlay (image space)
+    useEffect(() => {
+        const overlay = overlayRef.current;
+        if (!overlay || !imgW) return;
+        if (overlay.width !== imgW) overlay.width = imgW;
+        if (overlay.height !== imgH) overlay.height = imgH;
+        const ctx = overlay.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, imgW, imgH);
+        if (selection && selection.length === imgW * imgH) {
+            ctx.putImageData(maskOverlay(selection, imgW, imgH), 0, 0);
+        }
+    }, [selection, imgW, imgH]);
 
     // fit-to-container display size
     const hasImage = displayed !== null;
@@ -58,10 +116,8 @@ export const CanvasViewer: React.FC = () => {
         });
         ro.observe(container);
         return () => ro.disconnect();
-    }, [hasImage]); // re-observe when the container mounts
+    }, [hasImage]);
 
-    const imgW = displayed?.width ?? 0;
-    const imgH = displayed?.height ?? 0;
     const fitScale =
         imgW && containerSize.w && containerSize.h
             ? Math.min(containerSize.w / imgW, containerSize.h / imgH, 1)
@@ -80,13 +136,10 @@ export const CanvasViewer: React.FC = () => {
         [imgW, imgH, containerSize]
     );
 
-    const setZoomClamped = useCallback(
-        (z: number | null) => {
-            setZoom(z === null ? null : Math.min(32, Math.max(0.05, z)));
-            if (z === null) setPan({ x: 0, y: 0 });
-        },
-        []
-    );
+    const setZoomClamped = useCallback((z: number | null) => {
+        setZoom(z === null ? null : Math.min(32, Math.max(0.05, z)));
+        if (z === null) setPan({ x: 0, y: 0 });
+    }, []);
 
     const onWheel = useCallback(
         (e: React.WheelEvent) => {
@@ -98,31 +151,151 @@ export const CanvasViewer: React.FC = () => {
         [displayed, zoom, fitScale, setZoomClamped]
     );
 
+    /** screen (client) -> image pixel coordinates, via the canvas' laid-out rect */
+    const screenToImage = useCallback(
+        (clientX: number, clientY: number) => {
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (!rect || !imgW) return { x: 0, y: 0 };
+            return {
+                x: ((clientX - rect.left) / rect.width) * imgW,
+                y: ((clientY - rect.top) / rect.height) * imgH,
+            };
+        },
+        [imgW, imgH]
+    );
+
+    // --- selection commands ---
+
+    const applyCommit = useCallback(
+        (mask: Mask, mode: CombineMode) => {
+            const feathered = toolOptions.feather > 0 ? feather(mask, imgW, imgH, toolOptions.feather) : mask;
+            setSelection(combine(selection, feathered, mode));
+        },
+        [toolOptions.feather, imgW, imgH, selection, setSelection]
+    );
+
+    const selectAll = useCallback(() => {
+        if (imgW) setSelection(rectMask(imgW, imgH, 0, 0, imgW, imgH));
+    }, [imgW, imgH, setSelection]);
+
+    const clearSelection = useCallback(() => setSelection(null), [setSelection]);
+
+    const invertSelection = useCallback(() => {
+        if (selection) setSelection(invertMask(selection));
+    }, [selection, setSelection]);
+
+    const applyFeatherNow = useCallback(() => {
+        if (selection && toolOptions.feather > 0) {
+            setSelection(feather(selection, imgW, imgH, toolOptions.feather));
+        }
+    }, [selection, toolOptions.feather, imgW, imgH, setSelection]);
+
+    const coveragePct = useMemo(
+        () => (selection ? Math.round(coverage(selection) * 100) : null),
+        [selection]
+    );
+
+    // --- pointer routing ---
+
+    const gestureMode = (e: React.PointerEvent): CombineMode =>
+        e.shiftKey ? 'add' : e.altKey ? 'subtract' : toolOptions.mode;
+
+    const usingPan = (e: React.PointerEvent) => tool === 'move' || spaceHeld || e.button === 1;
+
     const onPointerDown = (e: React.PointerEvent) => {
         if (!displayed) return;
         (e.target as Element).setPointerCapture(e.pointerId);
-        dragState.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
-        setPanning(true);
-    };
-    const onPointerMove = (e: React.PointerEvent) => {
-        const d = dragState.current;
-        if (!d) return;
-        setPan(clampPan({ x: d.panX + e.clientX - d.startX, y: d.panY + e.clientY - d.startY }, scale));
-    };
-    const onPointerUp = () => {
-        dragState.current = null;
-        setPanning(false);
+        if (usingPan(e)) {
+            panState.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
+            setPanning(true);
+            return;
+        }
+        const img = screenToImage(e.clientX, e.clientY);
+        const screen = { x: e.clientX, y: e.clientY };
+        if (tool === 'rect') {
+            gesture.current = { kind: 'rect', mode: gestureMode(e), startImg: img, lastImg: img, startScreen: screen, lastScreen: screen };
+        }
+        setDraftTick(t => t + 1);
     };
 
-    // keyboard: C hold-to-compare, F fit/100%
+    const onPointerMove = (e: React.PointerEvent) => {
+        const p = panState.current;
+        if (p) {
+            setPan(clampPan({ x: p.panX + e.clientX - p.startX, y: p.panY + e.clientY - p.startY }, scale));
+            return;
+        }
+        const g = gesture.current;
+        if (!g) return;
+        g.lastImg = screenToImage(e.clientX, e.clientY);
+        g.lastScreen = { x: e.clientX, y: e.clientY };
+        setDraftTick(t => t + 1);
+    };
+
+    const onPointerUp = () => {
+        if (panState.current) {
+            panState.current = null;
+            setPanning(false);
+            return;
+        }
+        const g = gesture.current;
+        gesture.current = null;
+        setDraftTick(t => t + 1);
+        if (!g || !imgW) return;
+        if (g.kind === 'rect') {
+            const moved = Math.abs(g.lastImg.x - g.startImg.x) > 1 && Math.abs(g.lastImg.y - g.startImg.y) > 1;
+            if (moved) applyCommit(rectMask(imgW, imgH, g.startImg.x, g.startImg.y, g.lastImg.x, g.lastImg.y), g.mode);
+        }
+    };
+
+    // live gesture preview on the screen-space draft canvas
+    useEffect(() => {
+        const draft = draftRef.current;
+        const container = containerRef.current;
+        if (!draft || !container) return;
+        if (draft.width !== container.clientWidth) draft.width = container.clientWidth;
+        if (draft.height !== container.clientHeight) draft.height = container.clientHeight;
+        const ctx = draft.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, draft.width, draft.height);
+        const g = gesture.current;
+        if (!g) return;
+        const cRect = container.getBoundingClientRect();
+        const sx = g.startScreen.x - cRect.left;
+        const sy = g.startScreen.y - cRect.top;
+        const lx = g.lastScreen.x - cRect.left;
+        const ly = g.lastScreen.y - cRect.top;
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#fff';
+        if (g.kind === 'rect') {
+            ctx.strokeRect(Math.min(sx, lx), Math.min(sy, ly), Math.abs(lx - sx), Math.abs(ly - sy));
+        }
+    }, [draftTick]);
+
+    // keyboard: tools + selection commands + compare/fit + space-pan
     useEffect(() => {
         const down = (e: KeyboardEvent) => {
-            if (isEditableTarget(e) || e.metaKey || e.ctrlKey || e.altKey) return;
-            if (e.key === 'c' || e.key === 'C') setComparing(true);
-            if (e.key === 'f' || e.key === 'F') setZoomClamped(zoom === null ? 1 : null);
+            if (isEditableTarget(e) || e.metaKey || e.ctrlKey) return;
+            if (e.code === 'Space') {
+                setSpaceHeld(true);
+                if (displayed) e.preventDefault();
+                return;
+            }
+            if (e.altKey) return;
+            switch (e.key.toLowerCase()) {
+                case 'c': setComparing(true); break;
+                case 'f': setZoomClamped(zoom === null ? 1 : null); break;
+                case 'v': setTool('move'); break;
+                case 'm': setTool('rect'); break;
+                case 'a': selectAll(); break;
+                case 'x': invertSelection(); break;
+                case 'd': clearSelection(); break;
+                case 'escape': clearSelection(); break;
+            }
         };
         const up = (e: KeyboardEvent) => {
             if (e.key === 'c' || e.key === 'C') setComparing(false);
+            if (e.code === 'Space') setSpaceHeld(false);
         };
         window.addEventListener('keydown', down);
         window.addEventListener('keyup', up);
@@ -130,7 +303,7 @@ export const CanvasViewer: React.FC = () => {
             window.removeEventListener('keydown', down);
             window.removeEventListener('keyup', up);
         };
-    }, [zoom, setZoomClamped]);
+    }, [zoom, setZoomClamped, displayed, selectAll, invertSelection, clearSelection]);
 
     const handleFile = useCallback(
         async (file: File) => {
@@ -160,6 +333,8 @@ export const CanvasViewer: React.FC = () => {
     };
 
     const showFilters = !comparing && processed && !showSegmentation;
+    const toolActive = tool !== 'move' && !spaceHeld;
+    const cursor = panning ? 'grabbing' : toolActive ? 'crosshair' : scale > fitScale ? 'grab' : 'default';
 
     return (
         <div
@@ -214,18 +389,49 @@ export const CanvasViewer: React.FC = () => {
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
                     onPointerUp={onPointerUp}
-                    style={{ cursor: panning ? 'grabbing' : scale > fitScale ? 'grab' : 'default' }}
+                    style={{ cursor }}
                 >
-                    <canvas
-                        ref={canvasRef}
+                    {/* image + selection overlay share one transformed wrapper */}
+                    <div
+                        className="relative flex-shrink-0"
                         style={{
-                            imageRendering: 'pixelated',
                             width: `${imgW * scale}px`,
                             height: `${imgH * scale}px`,
                             transform: `translate(${pan.x}px, ${pan.y}px)`,
-                            filter: showFilters ? filtersToCss(filters) : 'none',
                             boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
                         }}
+                    >
+                        <canvas
+                            ref={canvasRef}
+                            className="absolute inset-0 w-full h-full"
+                            style={{
+                                imageRendering: 'pixelated',
+                                filter: showFilters ? filtersToCss(filters) : 'none',
+                            }}
+                        />
+                        <canvas
+                            ref={overlayRef}
+                            className="absolute inset-0 w-full h-full pointer-events-none"
+                            style={{ imageRendering: 'pixelated' }}
+                        />
+                    </div>
+
+                    {/* screen-space live gesture preview */}
+                    <canvas ref={draftRef} className="absolute inset-0 pointer-events-none" />
+
+                    <SelectionToolbar
+                        tool={tool}
+                        setTool={setTool}
+                        options={toolOptions}
+                        setOptions={setToolOptions}
+                        hasSelection={!!selection}
+                        hasLastSelection={hasLastSelection}
+                        coveragePct={coveragePct}
+                        onSelectAll={selectAll}
+                        onClear={clearSelection}
+                        onInvert={invertSelection}
+                        onReselect={reselect}
+                        onApplyFeather={applyFeatherNow}
                     />
 
                     {/* toolbar */}
@@ -318,6 +524,7 @@ export const CanvasViewer: React.FC = () => {
                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-zinc-900/80 border border-zinc-800 rounded-full text-[11px] text-zinc-400 backdrop-blur-sm pointer-events-none">
                         {comparing ? 'source' : showSegmentation ? 'segmentation' : processed ? 'processed' : 'source'} ·{' '}
                         {imgW}×{imgH}
+                        {coveragePct !== null && ` · selection ${coveragePct}%`}
                     </div>
                 </div>
             )}
