@@ -68,7 +68,7 @@ export const Tooltip: React.FC<Props> = ({ help, children }) => {
                     <div
                         ref={bodyRef}
                         role="tooltip"
-                        className="fixed z-[100] w-60 pointer-events-none rounded-lg border border-zinc-700 bg-zinc-900/98 shadow-xl shadow-black/50 backdrop-blur-sm p-2.5"
+                        className="fixed z-[100] w-60 pointer-events-none rounded-lg border border-ink bg-cream-2 shadow-xl shadow-black/25 p-2.5"
                         style={{
                             left: pos?.x ?? -9999,
                             top: pos?.y ?? -9999,
@@ -76,14 +76,14 @@ export const Tooltip: React.FC<Props> = ({ help, children }) => {
                         }}
                     >
                         <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="text-[11px] font-bold text-zinc-100">{help.title}</span>
+                            <span className="text-[11px] font-bold text-ink">{help.title}</span>
                             {help.shortcut && (
-                                <kbd className="px-1 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-[9px] font-mono text-zinc-300 flex-shrink-0">
+                                <kbd className="px-1 py-0.5 bg-cream border border-ink/40 rounded text-[9px] font-mono text-ink flex-shrink-0">
                                     {help.shortcut}
                                 </kbd>
                             )}
                         </div>
-                        <p className="text-[11px] leading-snug text-zinc-400">{help.body}</p>
+                        <p className="text-[11px] leading-snug text-ink-2">{help.body}</p>
                     </div>,
                     document.body
                 )}
