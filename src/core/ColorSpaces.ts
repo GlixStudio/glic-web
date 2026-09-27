@@ -40,6 +40,28 @@ export const getColorSpaceName = (cs: number): string => {
     }
 };
 
+/** Names of the three codec channels in the given colorspace, e.g. YCbCr -> Y, Cb, Cr. */
+export const getChannelNames = (cs: number): [string, string, string] => {
+    switch (cs) {
+        case COLORSPACES.OHTA: return ['I1', 'I2', 'I3'];
+        case COLORSPACES.CMY: return ['C', 'M', 'Y'];
+        case COLORSPACES.HSB: return ['H', 'S', 'B'];
+        case COLORSPACES.XYZ: return ['X', 'Y', 'Z'];
+        case COLORSPACES.YXY: return ['Y', 'x', 'y'];
+        case COLORSPACES.HCL: return ['H', 'C', 'L'];
+        case COLORSPACES.LUV: return ['L', 'u', 'v'];
+        case COLORSPACES.LAB: return ['L', 'a', 'b'];
+        case COLORSPACES.HWB: return ['H', 'W', 'B'];
+        case COLORSPACES.RGGBG: return ['R−G', 'G', 'B−G'];
+        case COLORSPACES.YPbPr: return ['Y', 'Pb', 'Pr'];
+        case COLORSPACES.YCbCr: return ['Y', 'Cb', 'Cr'];
+        case COLORSPACES.YDbDr: return ['Y', 'Db', 'Dr'];
+        case COLORSPACES.GS: return ['L', 'L', 'L']; // greyscale: all channels carry luma
+        case COLORSPACES.YUV: return ['Y', 'U', 'V'];
+        default: return ['R', 'G', 'B'];
+    }
+};
+
 // Helper functions
 const constrain = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 const map = (value: number, start1: number, stop1: number, start2: number, stop2: number) => {
