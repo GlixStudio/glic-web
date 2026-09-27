@@ -1,27 +1,30 @@
-import React, { cloneElement, useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { HelpEntry } from '../../core/help';
 
-// Styled hover/focus tooltip for beginner help. Rendered through a portal with
-// fixed positioning so it never gets clipped by scroll containers, flipped and
-// clamped to stay on screen.
+// Styled hover/focus tooltip for beginner help. The trigger is a display:contents
+// wrapper (layout-transparent; events bubble through it), and the tooltip body is
+// rendered through a portal with fixed positioning so scroll containers never
+// clip it - flipped and clamped to stay on screen.
 
 const SHOW_DELAY = 350;
 
 interface Props {
     help: HelpEntry;
-    /** a single element that accepts mouse/focus handlers (button, div, label...) */
-    children: React.ReactElement<Record<string, unknown>>;
+    children: React.ReactNode;
 }
 
 export const Tooltip: React.FC<Props> = ({ help, children }) => {
     const [anchor, setAnchor] = useState<DOMRect | null>(null);
-    const [pos, setPos] = useState<{ x: number; y: number; above: boolean } | null>(null);
+    const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
     const timer = useRef<number | null>(null);
     const bodyRef = useRef<HTMLDivElement>(null);
 
     const show = useCallback((e: React.SyntheticEvent) => {
-        const rect = (e.currentTarget as Element).getBoundingClientRect();
+        // the wrapper has display:contents (no box), so measure its child
+        const target = (e.currentTarget as HTMLElement).firstElementChild;
+        if (!target) return;
+        const rect = target.getBoundingClientRect();
         if (timer.current) window.clearTimeout(timer.current);
         timer.current = window.setTimeout(() => setAnchor(rect), SHOW_DELAY);
     }, []);
@@ -45,35 +48,21 @@ export const Tooltip: React.FC<Props> = ({ help, children }) => {
         const y = below ? anchor.bottom + margin : Math.max(4, anchor.top - margin - tip.height);
         let x = anchor.left + anchor.width / 2 - tip.width / 2;
         x = Math.max(8, Math.min(x, window.innerWidth - tip.width - 8));
-        setPos({ x, y, above: !below });
+        setPos({ x, y });
     }, [anchor]);
-
-    const child = cloneElement(children, {
-        onMouseEnter: (e: React.MouseEvent) => {
-            show(e);
-            (children.props.onMouseEnter as ((e: React.MouseEvent) => void) | undefined)?.(e);
-        },
-        onMouseLeave: (e: React.MouseEvent) => {
-            hide();
-            (children.props.onMouseLeave as ((e: React.MouseEvent) => void) | undefined)?.(e);
-        },
-        onFocus: (e: React.FocusEvent) => {
-            show(e);
-            (children.props.onFocus as ((e: React.FocusEvent) => void) | undefined)?.(e);
-        },
-        onBlur: (e: React.FocusEvent) => {
-            hide();
-            (children.props.onBlur as ((e: React.FocusEvent) => void) | undefined)?.(e);
-        },
-        onPointerDown: (e: React.PointerEvent) => {
-            hide();
-            (children.props.onPointerDown as ((e: React.PointerEvent) => void) | undefined)?.(e);
-        },
-    });
 
     return (
         <>
-            {child}
+            <span
+                style={{ display: 'contents' }}
+                onMouseEnter={show}
+                onMouseLeave={hide}
+                onFocus={show}
+                onBlur={hide}
+                onPointerDown={hide}
+            >
+                {children}
+            </span>
             {anchor &&
                 createPortal(
                     <div
@@ -103,7 +92,5 @@ export const Tooltip: React.FC<Props> = ({ help, children }) => {
 };
 
 /** Convenience: wraps children with a tooltip only when help is provided. */
-export const MaybeTooltip: React.FC<{ help?: HelpEntry; children: React.ReactElement<Record<string, unknown>> }> = ({
-    help,
-    children,
-}) => (help ? <Tooltip help={help}>{children}</Tooltip> : children);
+export const MaybeTooltip: React.FC<{ help?: HelpEntry; children: React.ReactNode }> = ({ help, children }) =>
+    help ? <Tooltip help={help}>{children}</Tooltip> : <>{children}</>;
