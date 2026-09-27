@@ -24,6 +24,7 @@ import {
     type ToolOptions,
 } from '../core/selection';
 import { SelectionToolbar } from './SelectionToolbar';
+import { LayersPanel } from './LayersPanel';
 import { Upload, RefreshCw, Maximize, Grid3x3, Eye, ZoomIn, ZoomOut } from 'lucide-react';
 
 const isEditableTarget = (e: KeyboardEvent) =>
@@ -57,6 +58,8 @@ export const CanvasViewer: React.FC = () => {
         setSelection,
         reselect,
         hasLastSelection,
+        layers,
+        activeLayerId,
     } = useApp();
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -599,6 +602,8 @@ export const CanvasViewer: React.FC = () => {
                         onExportMask={exportMask}
                     />
 
+                    <LayersPanel />
+
                     {/* toolbar */}
                     <div
                         className="absolute top-4 right-4 z-10 flex items-center gap-2"
@@ -694,6 +699,8 @@ export const CanvasViewer: React.FC = () => {
                         {comparing ? 'source' : showSegmentation ? 'segmentation' : processed ? 'processed' : 'source'} ·{' '}
                         {imgW}×{imgH}
                         {coveragePct !== null && ` · selection ${coveragePct}%`}
+                        {layers.length > 0 &&
+                            ` · ${layers.find(l => l.id === activeLayerId)?.name ?? ''} (${layers.length})`}
                     </div>
                 </div>
             )}
