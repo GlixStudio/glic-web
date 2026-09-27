@@ -17,19 +17,28 @@ import {
     Scan,
 } from 'lucide-react';
 
-const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean; isBottom: boolean }> = ({
-    layer,
-    isActive,
-    isTop,
-    isBottom,
-}) => {
+// Only primitives cross this prop boundary on purpose: React's dev-mode render
+// profiler deep-diffs changed props, and a GlitchLayer carries multi-megabyte
+// typed arrays (file, mask) that it would walk element by element on every update.
+interface LayerRowProps {
+    id: string;
+    name: string;
+    visible: boolean;
+    hasMask: boolean;
+    thumb: string | null;
+    isActive: boolean;
+    isTop: boolean;
+    isBottom: boolean;
+}
+
+const LayerRow: React.FC<LayerRowProps> = ({ id, name, visible, hasMask, thumb, isActive, isTop, isBottom }) => {
     const { setActiveLayerId, updateLayer, moveLayer, duplicateLayer, deleteLayer } = useApp();
     const [renaming, setRenaming] = useState(false);
-    const [nameDraft, setNameDraft] = useState(layer.name);
+    const [nameDraft, setNameDraft] = useState(name);
 
     const commitRename = () => {
-        const name = nameDraft.trim();
-        if (name) updateLayer(layer.id, { name });
+        const next = nameDraft.trim();
+        if (next) updateLayer(id, { name: next });
         setRenaming(false);
     };
 
@@ -38,22 +47,22 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
             className={`group flex items-center gap-1.5 px-1.5 py-1 rounded-md cursor-pointer border ${
                 isActive ? 'bg-blue-600/20 border-blue-600/60' : 'border-transparent hover:bg-white/60'
             }`}
-            onClick={() => setActiveLayerId(layer.id)}
+            onClick={() => setActiveLayerId(id)}
         >
             <button
                 onClick={e => {
                     e.stopPropagation();
-                    updateLayer(layer.id, { visible: !layer.visible });
+                    updateLayer(id, { visible: !visible });
                 }}
-                className={`p-0.5 flex-shrink-0 ${layer.visible ? 'text-ink' : 'text-ink-2/70'}`}
-                title={layer.visible ? 'Hide layer' : 'Show layer'}
+                className={`p-0.5 flex-shrink-0 ${visible ? 'text-ink' : 'text-ink-2/70'}`}
+                title={visible ? 'Hide layer' : 'Show layer'}
             >
-                {layer.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                {visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
             </button>
 
-            {layer.thumb ? (
+            {thumb ? (
                 <img
-                    src={layer.thumb}
+                    src={thumb}
                     alt=""
                     className="w-8 h-8 object-contain rounded-sm border border-ink bg-cream-2 flex-shrink-0"
                     style={{ imageRendering: 'pixelated' }}
@@ -79,16 +88,16 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                 <span
                     className={`flex-1 min-w-0 truncate text-[11px] ${isActive ? 'text-ink' : 'text-ink-2'}`}
                     onDoubleClick={() => {
-                        setNameDraft(layer.name);
+                        setNameDraft(name);
                         setRenaming(true);
                     }}
-                    title={`${layer.name} - double-click to rename`}
+                    title={`${name} - double-click to rename`}
                 >
-                    {layer.name}
+                    {name}
                 </span>
             )}
 
-            {layer.mask && (
+            {hasMask && (
                 <span title="Layer has a mask">
                     <Scan className="w-3 h-3 text-sky-600 flex-shrink-0" />
                 </span>
@@ -98,7 +107,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                 <button
                     onClick={e => {
                         e.stopPropagation();
-                        moveLayer(layer.id, 1);
+                        moveLayer(id, 1);
                     }}
                     disabled={isTop}
                     className="p-0.5 text-ink-2 hover:text-ink disabled:opacity-30"
@@ -109,7 +118,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                 <button
                     onClick={e => {
                         e.stopPropagation();
-                        moveLayer(layer.id, -1);
+                        moveLayer(id, -1);
                     }}
                     disabled={isBottom}
                     className="p-0.5 text-ink-2 hover:text-ink disabled:opacity-30"
@@ -120,7 +129,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                 <button
                     onClick={e => {
                         e.stopPropagation();
-                        duplicateLayer(layer.id);
+                        duplicateLayer(id);
                     }}
                     className="p-0.5 text-ink-2 hover:text-ink"
                     title="Duplicate layer"
@@ -130,7 +139,7 @@ const LayerRow: React.FC<{ layer: GlitchLayer; isActive: boolean; isTop: boolean
                 <button
                     onClick={e => {
                         e.stopPropagation();
-                        deleteLayer(layer.id);
+                        deleteLayer(id);
                     }}
                     className="p-0.5 text-ink-2 hover:text-red-600"
                     title="Delete layer"
@@ -220,7 +229,11 @@ export const LayersPanel: React.FC = () => {
                 {[...layers].reverse().map((layer, i) => (
                     <LayerRow
                         key={layer.id}
-                        layer={layer}
+                        id={layer.id}
+                        name={layer.name}
+                        visible={layer.visible}
+                        hasMask={layer.mask !== null}
+                        thumb={layer.thumb}
                         isActive={layer.id === activeLayerId}
                         isTop={i === 0}
                         isBottom={i === layers.length - 1}
