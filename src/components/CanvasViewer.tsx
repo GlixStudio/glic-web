@@ -8,6 +8,8 @@ import {
     ellipseMask,
     lassoMask,
     magicWand,
+    brushStamp,
+    newMask,
     combine,
     invertMask,
     feather,
@@ -26,7 +28,7 @@ const isEditableTarget = (e: KeyboardEvent) =>
     ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName);
 
 interface Gesture {
-    kind: 'rect' | 'ellipse' | 'lasso' | 'wand';
+    kind: 'rect' | 'ellipse' | 'lasso' | 'wand' | 'brush';
     mode: CombineMode;
     startImg: { x: number; y: number };
     lastImg: { x: number; y: number };
@@ -34,6 +36,9 @@ interface Gesture {
     lastScreen: { x: number; y: number };
     pointsImg: { x: number; y: number }[];
     pointsScreen: { x: number; y: number }[];
+    /** brush only */
+    working?: Mask;
+    erase?: boolean;
 }
 
 export const CanvasViewer: React.FC = () => {
@@ -69,6 +74,7 @@ export const CanvasViewer: React.FC = () => {
     const [toolOptions, setToolOptions] = useState<ToolOptions>(DEFAULT_TOOL_OPTIONS);
     const panState = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
     const gesture = useRef<Gesture | null>(null);
+    const hoverScreen = useRef<{ x: number; y: number } | null>(null);
     const [draftTick, setDraftTick] = useState(0); // triggers draft canvas redraws
 
     const segmentationView = useMemo(() => {
@@ -200,6 +206,28 @@ export const CanvasViewer: React.FC = () => {
         [selection]
     );
 
+    /** stamps the brush along a stroke segment and live-patches the overlay */
+    const paintBrush = (g: Gesture, from: { x: number; y: number }, to: { x: number; y: number }) => {
+        if (!g.working) return;
+        const radius = toolOptions.brushSize / 2;
+        const dist = Math.hypot(to.x - from.x, to.y - from.y);
+        const steps = Math.max(1, Math.ceil(dist / Math.max(1, radius / 2)));
+        for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            brushStamp(g.working, imgW, imgH, from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t, radius, !!g.erase);
+        }
+        const ctx = overlayRef.current?.getContext('2d');
+        if (!ctx) return;
+        const x0 = Math.max(0, Math.floor(Math.min(from.x, to.x) - radius - 2));
+        const y0 = Math.max(0, Math.floor(Math.min(from.y, to.y) - radius - 2));
+        const x1 = Math.min(imgW, Math.ceil(Math.max(from.x, to.x) + radius + 2));
+        const y1 = Math.min(imgH, Math.ceil(Math.max(from.y, to.y) + radius + 2));
+        if (x1 > x0 && y1 > y0) {
+            ctx.clearRect(x0, y0, x1 - x0, y1 - y0);
+            ctx.putImageData(maskOverlay(g.working, imgW, imgH, x0, y0, x1, y1), x0, y0);
+        }
+    };
+
     // --- pointer routing ---
 
     const gestureMode = (e: React.PointerEvent): CombineMode =>
@@ -217,7 +245,7 @@ export const CanvasViewer: React.FC = () => {
         }
         const img = screenToImage(e.clientX, e.clientY);
         const screen = { x: e.clientX, y: e.clientY };
-        if (tool === 'rect' || tool === 'ellipse' || tool === 'lasso' || tool === 'wand') {
+        if (tool === 'rect' || tool === 'ellipse' || tool === 'lasso' || tool === 'wand' || tool === 'brush') {
             gesture.current = {
                 kind: tool,
                 mode: gestureMode(e),
@@ -228,11 +256,21 @@ export const CanvasViewer: React.FC = () => {
                 pointsImg: [img],
                 pointsScreen: [screen],
             };
+            if (tool === 'brush') {
+                const g = gesture.current;
+                g.working = selection && selection.length === imgW * imgH ? selection.slice() : newMask(imgW, imgH);
+                g.erase = e.altKey;
+                paintBrush(g, img, img);
+            }
         }
         setDraftTick(t => t + 1);
     };
 
     const onPointerMove = (e: React.PointerEvent) => {
+        if (tool === 'brush') {
+            hoverScreen.current = { x: e.clientX, y: e.clientY };
+            if (!gesture.current) setDraftTick(t => t + 1);
+        }
         const p = panState.current;
         if (p) {
             setPan(clampPan({ x: p.panX + e.clientX - p.startX, y: p.panY + e.clientY - p.startY }, scale));
@@ -240,8 +278,12 @@ export const CanvasViewer: React.FC = () => {
         }
         const g = gesture.current;
         if (!g) return;
+        const prevImg = g.lastImg;
         g.lastImg = screenToImage(e.clientX, e.clientY);
         g.lastScreen = { x: e.clientX, y: e.clientY };
+        if (g.kind === 'brush') {
+            paintBrush(g, prevImg, g.lastImg);
+        }
         if (g.kind === 'lasso') {
             const prev = g.pointsScreen[g.pointsScreen.length - 1];
             if (Math.abs(g.lastScreen.x - prev.x) + Math.abs(g.lastScreen.y - prev.y) > 2) {
@@ -279,6 +321,8 @@ export const CanvasViewer: React.FC = () => {
                     g.mode
                 );
             }
+        } else if (g.kind === 'brush' && g.working) {
+            setSelection(g.working);
         }
     };
 
@@ -292,9 +336,21 @@ export const CanvasViewer: React.FC = () => {
         const ctx = draft.getContext('2d');
         if (!ctx) return;
         ctx.clearRect(0, 0, draft.width, draft.height);
-        const g = gesture.current;
-        if (!g) return;
         const cRect = container.getBoundingClientRect();
+        const g = gesture.current;
+        if (!g) {
+            // brush hover cursor
+            const hov = hoverScreen.current;
+            if (tool === 'brush' && hov) {
+                ctx.setLineDash([]);
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                ctx.beginPath();
+                ctx.arc(hov.x - cRect.left, hov.y - cRect.top, (toolOptions.brushSize / 2) * scale, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            return;
+        }
         const sx = g.startScreen.x - cRect.left;
         const sy = g.startScreen.y - cRect.top;
         const lx = g.lastScreen.x - cRect.left;
@@ -302,6 +358,16 @@ export const CanvasViewer: React.FC = () => {
         ctx.setLineDash([4, 4]);
         ctx.lineWidth = 1;
         ctx.strokeStyle = '#fff';
+        if (g.kind === 'brush') {
+            ctx.setLineDash([]);
+            ctx.strokeStyle = g.erase ? 'rgba(248,113,113,0.9)' : 'rgba(255,255,255,0.9)';
+            const lx0 = g.lastScreen.x - cRect.left;
+            const ly0 = g.lastScreen.y - cRect.top;
+            ctx.beginPath();
+            ctx.arc(lx0, ly0, (toolOptions.brushSize / 2) * scale, 0, Math.PI * 2);
+            ctx.stroke();
+            return;
+        }
         if (g.kind === 'rect') {
             ctx.strokeRect(Math.min(sx, lx), Math.min(sy, ly), Math.abs(lx - sx), Math.abs(ly - sy));
         } else if (g.kind === 'ellipse') {
@@ -318,7 +384,7 @@ export const CanvasViewer: React.FC = () => {
             });
             ctx.stroke();
         }
-    }, [draftTick]);
+    }, [draftTick, tool, toolOptions.brushSize, scale]);
 
     // keyboard: tools + selection commands + compare/fit + space-pan
     useEffect(() => {
@@ -337,6 +403,9 @@ export const CanvasViewer: React.FC = () => {
                 case 'm': setTool(t => (t === 'rect' ? 'ellipse' : 'rect')); break;
                 case 'l': setTool('lasso'); break;
                 case 'w': setTool('wand'); break;
+                case 'b': setTool('brush'); break;
+                case '[': setToolOptions(o => ({ ...o, brushSize: Math.max(2, Math.round(o.brushSize / 1.25)) })); break;
+                case ']': setToolOptions(o => ({ ...o, brushSize: Math.min(512, Math.round(o.brushSize * 1.25)) })); break;
                 case 'a': selectAll(); break;
                 case 'x': invertSelection(); break;
                 case 'd': clearSelection(); break;

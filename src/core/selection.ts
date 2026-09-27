@@ -8,7 +8,7 @@
 export type Mask = Uint8ClampedArray;
 export type CombineMode = 'replace' | 'add' | 'subtract';
 
-export type SelectionTool = 'move' | 'rect' | 'ellipse' | 'lasso' | 'wand';
+export type SelectionTool = 'move' | 'rect' | 'ellipse' | 'lasso' | 'wand' | 'brush';
 
 export interface ToolOptions {
     mode: CombineMode;
@@ -277,32 +277,48 @@ export const compositeWithMask = (source: ImageData, glitched: ImageData, mask: 
     return new ImageData(out, source.width, source.height);
 };
 
-/** Translucent tint + edge highlight for the viewer overlay. */
-export const maskOverlay = (mask: Mask, w: number, h: number): ImageData => {
-    const out = new Uint8ClampedArray(mask.length * 4);
-    for (let i = 0; i < mask.length; i++) {
-        const m = mask[i];
-        if (m === 0) continue;
-        const o = i * 4;
-        const x = i % w;
-        const inside = m >= 128;
-        const isEdge =
-            inside &&
-            ((x > 0 && mask[i - 1] < 128) ||
-                (x < w - 1 && mask[i + 1] < 128) ||
-                (i >= w && mask[i - w] < 128) ||
-                (i < w * (h - 1) && mask[i + w] < 128));
-        if (isEdge) {
-            out[o] = 255;
-            out[o + 1] = 255;
-            out[o + 2] = 255;
-            out[o + 3] = 230;
-        } else {
-            out[o] = 59;
-            out[o + 1] = 130;
-            out[o + 2] = 246;
-            out[o + 3] = Math.round(m * 0.3);
+/**
+ * Translucent tint + edge highlight for the viewer overlay. An optional region
+ * limits the output to [x0,x1)x[y0,y1) for cheap partial updates (edge tests
+ * still sample the full mask).
+ */
+export const maskOverlay = (
+    mask: Mask,
+    w: number,
+    h: number,
+    x0 = 0,
+    y0 = 0,
+    x1 = w,
+    y1 = h
+): ImageData => {
+    const rw = x1 - x0;
+    const rh = y1 - y0;
+    const out = new Uint8ClampedArray(rw * rh * 4);
+    for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+            const i = y * w + x;
+            const m = mask[i];
+            if (m === 0) continue;
+            const o = ((y - y0) * rw + (x - x0)) * 4;
+            const inside = m >= 128;
+            const isEdge =
+                inside &&
+                ((x > 0 && mask[i - 1] < 128) ||
+                    (x < w - 1 && mask[i + 1] < 128) ||
+                    (y > 0 && mask[i - w] < 128) ||
+                    (y < h - 1 && mask[i + w] < 128));
+            if (isEdge) {
+                out[o] = 255;
+                out[o + 1] = 255;
+                out[o + 2] = 255;
+                out[o + 3] = 230;
+            } else {
+                out[o] = 59;
+                out[o + 1] = 130;
+                out[o + 2] = 246;
+                out[o + 3] = Math.round(m * 0.3);
+            }
         }
     }
-    return new ImageData(out, w, h);
+    return new ImageData(out, rw, rh);
 };
