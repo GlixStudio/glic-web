@@ -189,10 +189,8 @@ export const processChannelEncode = (
     if (onProgress) onProgress(p, segments.length, segments.length);
 };
 
-export const encode = (imgData: ImageData, config: CodecConfig, onProgress?: ProgressFn): EncodeResult => {
-    const ccfg = cloneConfig(config);
-
-    // resolve RANDOM wavelet/transform type up front so the header records the choice
+/** Resolves RANDOM wavelet/transform-type choices in place (done once, pre-header). */
+export const resolveRandomTransforms = (ccfg: CodecConfig) => {
     for (let p = 0; p < 3; p++) {
         if (ccfg.transform_method[p] === WAVELET_RANDOM) {
             ccfg.transform_method[p] = 1 + Math.floor(Math.random() * (WAVELETNO - 1));
@@ -201,6 +199,11 @@ export const encode = (imgData: ImageData, config: CodecConfig, onProgress?: Pro
             ccfg.transform_type[p] = Math.floor(Math.random() * TRANSTYPENO);
         }
     }
+};
+
+export const encode = (imgData: ImageData, config: CodecConfig, onProgress?: ProgressFn): EncodeResult => {
+    const ccfg = cloneConfig(config);
+    resolveRandomTransforms(ccfg);
 
     const writer = new GlicWriter();
     const co = ccfg.color_outside;
@@ -324,7 +327,14 @@ export const processChannelDecode = (
     if (onProgress) onProgress(p, segments.length, segments.length);
 };
 
-export const decode = (file: Uint8Array, opts: DecodeOptions = {}, onProgress?: ProgressFn): DecodeResult => {
+export interface ParsedGlic {
+    reader: GlicReader;
+    planes: Planes;
+    segments: Segment[][];
+}
+
+/** Header/segmentation/data parsing only - channel reconstruction happens separately. */
+export const decodeParse = (file: Uint8Array, opts: DecodeOptions = {}): ParsedGlic => {
     const reader = new GlicReader(file);
     reader.readFirstHeader();
     reader.readSecondHeader();
@@ -384,6 +394,12 @@ export const decode = (file: Uint8Array, opts: DecodeOptions = {}, onProgress?: 
         reader.skip(4);
         reader.readData(reader.encoding_method[p], planes, p, segments[p]);
     }
+
+    return { reader, planes, segments };
+};
+
+export const decode = (file: Uint8Array, opts: DecodeOptions = {}, onProgress?: ProgressFn): DecodeResult => {
+    const { reader, planes, segments } = decodeParse(file, opts);
 
     for (let p = 0; p < 3; p++) {
         processChannelDecode(planes, p, segments[p], reader, onProgress);

@@ -37,6 +37,11 @@ export const ENCODING_RAW = 0;
 export const ENCODING_PACKED = 1;
 export const ENCODING_RLE = 2;
 
+/** Anything that can serve pixel reads for serialization (Planes or a channel shim). */
+export interface PlaneReader {
+    get(pno: number, x: number, y: number): number;
+}
+
 /**
  * Number of bits used by PACKED/RLE for wavelet-transformed values:
  * Java's (int) ceil(log(scale) / log(2)), including its NaN/-Infinity cast quirks.
@@ -120,6 +125,128 @@ class ByteWriter {
     }
 }
 
+/** 8-byte records per segment, exactly as the original writeSegmentsData. */
+export const encodeSegmentsData = (segments: Segment[], predictionMethod: number): Uint8Array => {
+    const bytes = new Uint8Array(segments.length * 8);
+    let off = 0;
+    for (const s of segments) {
+        // store the concrete per-segment type only when the global method is
+        // random/SAD/BSAD; otherwise PRED_NONE (decoder substitutes the header method)
+        const pred_type = predictionMethod < 0 ? s.pred_type : PRED_NONE;
+        const ang = Math.trunc(0x7000 * s.angle);
+        bytes[off] = pred_type & 0xff;
+        bytes[off + 1] = (s.refx >>> 8) & 0xff;
+        bytes[off + 2] = s.refx & 0xff;
+        bytes[off + 3] = (s.refy >>> 8) & 0xff;
+        bytes[off + 4] = s.refy & 0xff;
+        bytes[off + 5] = s.refa & 0xff;
+        bytes[off + 6] = (ang >>> 8) & 0xff;
+        bytes[off + 7] = ang & 0xff;
+        off += 8;
+    }
+    return bytes;
+};
+
+const emitPackedBits = (
+    out: BitOutput,
+    pno: number,
+    bits: number,
+    val: number,
+    ccfg: ChannelHeaderConfig
+) => {
+    if (ccfg.transform_method[pno] === WAVELET_NONE) {
+        if (ccfg.clamp_method[pno] === CLAMP_NONE) {
+            out.writeInt(false, 9, val);
+        } else if (ccfg.clamp_method[pno] === CLAMP_MOD256) {
+            out.writeInt(true, 8, val);
+        }
+    } else {
+        out.writeInt(false, bits + 1, val);
+    }
+};
+
+/** Encoded image data for one channel (RAW / PACKED / RLE). */
+export const encodeChannelData = (
+    method: number,
+    planes: PlaneReader,
+    pno: number,
+    segments: Segment[],
+    ccfg: ChannelHeaderConfig
+): Uint8Array => {
+    if (method === ENCODING_PACKED || method === ENCODING_RLE) {
+        const out = new BitOutput();
+        const bits = packedBitCount(ccfg.transform_scale[pno]);
+
+        if (method === ENCODING_PACKED) {
+            for (const s of segments) {
+                for (let x = 0; x < s.size; x++) {
+                    for (let y = 0; y < s.size; y++) {
+                        emitPackedBits(out, pno, bits, planes.get(pno, s.x + x, s.y + y), ccfg);
+                    }
+                }
+            }
+        } else {
+            let currentval = 0;
+            let firstval = true;
+            let currentcnt = 0;
+
+            const flush = () => {
+                if (currentcnt === 1) {
+                    out.writeBoolean(false);
+                } else {
+                    out.writeBoolean(true);
+                    out.writeInt(true, 7, currentcnt - 2);
+                }
+                emitPackedBits(out, pno, bits, currentval, ccfg);
+            };
+
+            for (const s of segments) {
+                for (let x = 0; x < s.size; x++) {
+                    for (let y = 0; y < s.size; y++) {
+                        const val = planes.get(pno, s.x + x, s.y + y);
+                        if (firstval) {
+                            currentval = val;
+                            currentcnt = 1;
+                            firstval = false;
+                        } else if (currentval !== val || currentcnt === 129) {
+                            flush();
+                            currentval = val;
+                            currentcnt = 1;
+                        } else {
+                            currentcnt++;
+                        }
+                    }
+                }
+            }
+            // final run: the original has a typo here (`if (currentval == 1)`); we flush
+            // correctly - both stream variants are read fine by either decoder
+            if (!firstval) flush();
+        }
+
+        out.align(1);
+        return out.toByteArray();
+    }
+
+    // RAW: 4-byte big-endian signed ints
+    let count = 0;
+    for (const s of segments) count += s.size * s.size;
+    const bytes = new Uint8Array(count * 4);
+    let off = 0;
+    for (const s of segments) {
+        for (let x = 0; x < s.size; x++) {
+            for (let y = 0; y < s.size; y++) {
+                const v = planes.get(pno, s.x + x, s.y + y);
+                bytes[off] = (v >>> 24) & 0xff;
+                bytes[off + 1] = (v >>> 16) & 0xff;
+                bytes[off + 2] = (v >>> 8) & 0xff;
+                bytes[off + 3] = v & 0xff;
+                off += 4;
+            }
+        }
+    }
+    return bytes;
+};
+
 export class GlicWriter {
     private o = new ByteWriter();
     segmentation_sizes = [0, 0, 0, 0];
@@ -174,116 +301,27 @@ export class GlicWriter {
     }
 
     writeSegmentsData(pno: number, segments: Segment[], predictionMethod: number) {
-        const start = this.o.length;
-        for (const s of segments) {
-            // store the concrete per-segment type only when the global method is
-            // random/SAD/BSAD; otherwise PRED_NONE (decoder substitutes the header method)
-            const pred_type = predictionMethod < 0 ? s.pred_type : PRED_NONE;
-            this.o.u8(pred_type);
-            this.o.i16(s.refx);
-            this.o.i16(s.refy);
-            this.o.u8(s.refa);
-            this.o.i16(Math.trunc(0x7000 * s.angle));
-        }
-        this.segmdata_sizes[pno] = this.o.length - start;
+        this.writeSegmentsDataBytes(pno, encodeSegmentsData(segments, predictionMethod));
+    }
+
+    /** Accepts segment-data bytes produced elsewhere (e.g. in a channel worker). */
+    writeSegmentsDataBytes(pno: number, bytes: Uint8Array) {
+        this.segmdata_sizes[pno] = bytes.length;
+        this.o.bytes(bytes);
     }
 
     writeDataMark() {
         this.o.str('IMAGEDATA ');
     }
 
-    writeData(method: number, planes: Planes, pno: number, segments: Segment[], ccfg: ChannelHeaderConfig) {
-        const start = this.o.length;
-        switch (method) {
-            case ENCODING_PACKED:
-                this.encodePacked(planes, pno, segments, ccfg);
-                break;
-            case ENCODING_RLE:
-                this.encodeRLE(planes, pno, segments, ccfg);
-                break;
-            default:
-                this.encodeRaw(planes, pno, segments);
-        }
-        this.data_sizes[pno] = this.o.length - start;
+    writeData(method: number, planes: PlaneReader, pno: number, segments: Segment[], ccfg: ChannelHeaderConfig) {
+        this.writeDataBytes(pno, encodeChannelData(method, planes, pno, segments, ccfg));
     }
 
-    private encodeRaw(planes: Planes, pno: number, segments: Segment[]) {
-        for (const s of segments) {
-            for (let x = 0; x < s.size; x++) {
-                for (let y = 0; y < s.size; y++) {
-                    this.o.i32(planes.get(pno, s.x + x, s.y + y));
-                }
-            }
-        }
-    }
-
-    private emitPackedBits(out: BitOutput, pno: number, bits: number, val: number, ccfg: ChannelHeaderConfig) {
-        if (ccfg.transform_method[pno] === WAVELET_NONE) {
-            if (ccfg.clamp_method[pno] === CLAMP_NONE) {
-                out.writeInt(false, 9, val);
-            } else if (ccfg.clamp_method[pno] === CLAMP_MOD256) {
-                out.writeInt(true, 8, val);
-            }
-        } else {
-            out.writeInt(false, bits + 1, val);
-        }
-    }
-
-    private encodePacked(planes: Planes, pno: number, segments: Segment[], ccfg: ChannelHeaderConfig) {
-        const out = new BitOutput();
-        const bits = packedBitCount(ccfg.transform_scale[pno]);
-        for (const s of segments) {
-            for (let x = 0; x < s.size; x++) {
-                for (let y = 0; y < s.size; y++) {
-                    this.emitPackedBits(out, pno, bits, planes.get(pno, s.x + x, s.y + y), ccfg);
-                }
-            }
-        }
-        out.align(1);
-        this.o.bytes(out.toByteArray());
-    }
-
-    private encodeRLE(planes: Planes, pno: number, segments: Segment[], ccfg: ChannelHeaderConfig) {
-        const out = new BitOutput();
-        const bits = packedBitCount(ccfg.transform_scale[pno]);
-        let currentval = 0;
-        let firstval = true;
-        let currentcnt = 0;
-
-        const flush = () => {
-            if (currentcnt === 1) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeInt(true, 7, currentcnt - 2);
-            }
-            this.emitPackedBits(out, pno, bits, currentval, ccfg);
-        };
-
-        for (const s of segments) {
-            for (let x = 0; x < s.size; x++) {
-                for (let y = 0; y < s.size; y++) {
-                    const val = planes.get(pno, s.x + x, s.y + y);
-                    if (firstval) {
-                        currentval = val;
-                        currentcnt = 1;
-                        firstval = false;
-                    } else if (currentval !== val || currentcnt === 129) {
-                        flush();
-                        currentval = val;
-                        currentcnt = 1;
-                    } else {
-                        currentcnt++;
-                    }
-                }
-            }
-        }
-        // final run: the original has a typo here (`if (currentval == 1)`), we flush
-        // correctly - both stream variants are read fine by either decoder
-        if (!firstval) flush();
-
-        out.align(1);
-        this.o.bytes(out.toByteArray());
+    /** Accepts encoded channel data produced elsewhere (e.g. in a channel worker). */
+    writeDataBytes(pno: number, bytes: Uint8Array) {
+        this.data_sizes[pno] = bytes.length;
+        this.o.bytes(bytes);
     }
 
     writeSeparator(count: number, val: number) {
