@@ -65,6 +65,7 @@ export const SelectionToolbar: React.FC<Props> = ({
         // stop pointer events here: clicks on the toolbar must not become canvas
         // gestures (a leaked pointerup would read as click-away and clear the mask)
         <div
+            data-tour="selection-tools"
             className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex items-start gap-2"
             onPointerDown={e => e.stopPropagation()}
             onPointerUp={e => e.stopPropagation()}

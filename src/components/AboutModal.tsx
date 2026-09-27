@@ -1,4 +1,6 @@
 import React from 'react';
+import { startTour } from '../core/tour';
+import { Compass } from 'lucide-react';
 
 const SHORTCUTS: [string, string][] = [
     ['E', 'Encode into the active layer'],
@@ -32,13 +34,25 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
             >
                 <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
-                        <h2 className="text-2xl font-bold text-zinc-100">About GLIC Web</h2>
+                        <h2 className="text-2xl font-bold text-zinc-100">Help &amp; About</h2>
                         <button onClick={onClose} className="text-zinc-400 hover:text-zinc-200 transition-colors">
                             <span className="text-2xl">×</span>
                         </button>
                     </div>
 
                     <div className="space-y-4 text-zinc-300 text-sm leading-relaxed">
+                        <button
+                            onClick={() => {
+                                onClose();
+                                startTour();
+                            }}
+                            className="w-full py-2.5 rounded-lg font-bold text-sm bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Compass className="w-4 h-4" /> Start the guided tour
+                        </button>
+                        <p className="text-xs text-zinc-500">
+                            Tip: hover any control anywhere in the app for a plain-language explanation of what it does.
+                        </p>
                         <p>
                             <strong className="text-zinc-100">GLIC Web</strong> is a web port of{' '}
                             <strong className="text-zinc-100">GLIC</strong> (GLitch Image Codec), the Processing tool for

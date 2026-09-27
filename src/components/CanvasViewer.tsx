@@ -518,6 +518,7 @@ export const CanvasViewer: React.FC = () => {
         >
             {!displayed ? (
                 <div
+                    data-tour="dropzone"
                     className={`text-center p-12 border-2 border-dashed rounded-2xl flex flex-col items-center gap-6 transition-all ${
                         isDragging
                             ? 'border-blue-500 bg-blue-500/5'
@@ -608,6 +609,7 @@ export const CanvasViewer: React.FC = () => {
 
                     {/* toolbar */}
                     <div
+                        data-tour="viewer-tools"
                         className="absolute top-4 right-4 z-10 flex items-center gap-2"
                         onPointerDown={e => e.stopPropagation()}
                         onPointerUp={e => e.stopPropagation()}

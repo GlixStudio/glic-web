@@ -48,6 +48,7 @@ export const Sidebar: React.FC = () => {
                 {tabs.map((t, i) => (
                     <button
                         key={t}
+                        data-tour={i === 1 ? 'tab-channels' : undefined}
                         className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
                             tab === i
                                 ? 'text-blue-500 border-b-2 border-blue-500 bg-zinc-900/50'

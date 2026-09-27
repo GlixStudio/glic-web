@@ -3,6 +3,7 @@ import { AppProvider } from './core/AppContext';
 import { Sidebar } from './components/Sidebar';
 import { CanvasViewer } from './components/CanvasViewer';
 import { Toasts } from './components/Toasts';
+import { Tour } from './components/Tour';
 import { PanelLeft } from 'lucide-react';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
                 </main>
 
                 <Toasts />
+                <Tour />
             </div>
         </AppProvider>
     );

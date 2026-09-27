@@ -115,6 +115,7 @@ export const ActionBar: React.FC = () => {
             <div className="flex gap-2">
                 <Tooltip help={HELP.encode}>
                 <button
+                    data-tour="encode"
                     className={`flex-1 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
                         !originalImage || isProcessing
                             ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'

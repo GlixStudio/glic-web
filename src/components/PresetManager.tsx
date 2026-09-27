@@ -95,7 +95,7 @@ export const PresetManager: React.FC = () => {
     ];
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-2" data-tour="preset">
             <div className="flex gap-2 items-end">
                 <div className="flex-1 min-w-0">
                     <Select label="Preset" help={HELP.preset} value={selected} options={options} onChange={apply} />

@@ -188,6 +188,7 @@ export const LayersPanel: React.FC = () => {
 
     return (
         <div
+            data-tour="layers"
             className="absolute right-4 top-16 z-10 w-60 bg-zinc-900/95 border border-zinc-700 rounded-lg backdrop-blur-sm flex flex-col max-h-[70%]"
             onPointerDown={e => e.stopPropagation()}
             onPointerUp={e => e.stopPropagation()}
