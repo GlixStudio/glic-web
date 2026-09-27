@@ -23,6 +23,28 @@ export const fileToImageData = (file: File): Promise<ImageData> =>
         img.src = url;
     });
 
+/** Lossless PNG blob from ImageData (for project storage). */
+export const imageDataToPngBlob = (img: ImageData): Promise<Blob> =>
+    new Promise((resolve, reject) => {
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        c.getContext('2d')!.putImageData(img, 0, 0);
+        c.toBlob(b => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png');
+    });
+
+/** ImageData from a stored image blob. */
+export const blobToImageData = async (blob: Blob): Promise<ImageData> => {
+    const bmp = await createImageBitmap(blob);
+    const c = document.createElement('canvas');
+    c.width = bmp.width;
+    c.height = bmp.height;
+    const ctx = c.getContext('2d', { willReadFrequently: true })!;
+    ctx.drawImage(bmp, 0, 0);
+    bmp.close();
+    return ctx.getImageData(0, 0, c.width, c.height);
+};
+
 /** Draws ImageData to a fresh canvas, optionally baking in the CSS filters. */
 export const imageDataToCanvas = (img: ImageData, filters?: ImageFilters): HTMLCanvasElement => {
     const src = document.createElement('canvas');
