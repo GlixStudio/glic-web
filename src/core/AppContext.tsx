@@ -4,7 +4,22 @@ import { glicEngine, type ChannelProgress } from './engine';
 import type { Segment } from './Planes';
 import { isEmptyMask, type Mask } from './selection';
 import { compositeLayers, makeLayer, canAddLayer, type GlitchLayer } from './layers';
-import { imageDataToThumbnail } from './imageio';
+import {
+    imageDataToThumbnail,
+    imageDataToPngBlob,
+    blobToImageData,
+    imageDataToCanvas,
+    canvasToPngBlob,
+    downloadBlob,
+    timestampedFilename,
+} from './imageio';
+import {
+    saveProjectRecord,
+    getProject,
+    nextProjectName,
+    type ProjectRecord,
+    type StoredLayer,
+} from './projects';
 
 import { DEFAULT_FILTERS, type ImageFilters } from './filters';
 
@@ -73,6 +88,19 @@ interface AppState {
     dismissToast: (id: number) => void;
 
     loadImage: (img: ImageData) => void;
+
+    // --- projects (persisted in the browser via IndexedDB) ---
+    projectName: string;
+    projectId: string | null;
+    saveProject: (opts?: { name?: string; asNew?: boolean }) => Promise<void>;
+    openProject: (id: string) => Promise<void>;
+    newProject: () => void;
+
+    /** downloads the composite as PNG with adjustments baked in */
+    savePng: () => Promise<void>;
+    /** downloads the active layer's .glic stream */
+    saveGlic: () => void;
+
     /** encode into the active layer (creates "Layer 1" on an empty stack) */
     encodeNow: () => Promise<void>;
     /** encode into a new layer pushed on top of the stack */
@@ -110,6 +138,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [selection, setSelectionState] = useState<Mask | null>(null);
     const [lastSelection, setLastSelection] = useState<Mask | null>(null);
+    const [projectId, setProjectId] = useState<string | null>(null);
+    const [projectName, setProjectName] = useState('Untitled');
 
     const configRef = useRef(config);
     configRef.current = config;
@@ -121,12 +151,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     activeIdRef.current = activeLayerId;
     const originalRef = useRef(originalImage);
     originalRef.current = originalImage;
+    const projectIdRef = useRef(projectId);
+    projectIdRef.current = projectId;
+    const projectNameRef = useRef(projectName);
+    projectNameRef.current = projectName;
+    const filtersRef = useRef(filters);
+    filtersRef.current = filters;
     const toastId = useRef(0);
 
     const processed = useMemo(
         () => (originalImage && layers.length > 0 ? compositeLayers(originalImage, layers) : null),
         [originalImage, layers]
     );
+
+    const processedRef = useRef(processed);
+    processedRef.current = processed;
 
     const activeLayer = layers.find(l => l.id === activeLayerId) ?? null;
 
@@ -169,6 +208,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setHistory([]);
         setSelectionState(null);
         setLastSelection(null);
+        setProjectId(null);
+        setProjectName('Untitled');
         onceHint('glic_hint_load_v1', 'Image loaded - press E to encode, or pick a preset first');
     }, [onceHint]);
 
@@ -444,6 +485,141 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         toast('info', 'Cancelled');
     }, [toast]);
 
+
+    // --- projects ---
+
+    const saveProject = useCallback(
+        async (opts: { name?: string; asNew?: boolean } = {}) => {
+            const source = originalRef.current;
+            if (!source) {
+                toast('info', 'Nothing to save yet - load an image first');
+                return;
+            }
+            try {
+                const ls = layersRef.current;
+                const keepId = !opts.asNew && projectIdRef.current;
+                const name =
+                    opts.name?.trim() ||
+                    (keepId && projectNameRef.current !== 'Untitled' ? projectNameRef.current : await nextProjectName());
+                const id = keepId
+                    ? projectIdRef.current!
+                    : typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                      ? crypto.randomUUID()
+                      : `p-${Date.now()}`;
+
+                const storedLayers: StoredLayer[] = await Promise.all(
+                    ls.map(async l => ({
+                        name: l.name,
+                        visible: l.visible,
+                        opacity: l.opacity,
+                        blendMode: l.blendMode,
+                        mask: l.mask ? new Uint8Array(l.mask) : null,
+                        result: await imageDataToPngBlob(l.result),
+                        file: l.file,
+                        resolved: l.resolved,
+                        thumb: l.thumb,
+                    }))
+                );
+                const record: ProjectRecord = {
+                    id,
+                    name,
+                    updatedAt: Date.now(),
+                    width: source.width,
+                    height: source.height,
+                    thumb: imageDataToThumbnail(processedRef.current ?? source, null, 96),
+                    source: await imageDataToPngBlob(source),
+                    layers: storedLayers,
+                    activeLayerIndex: ls.findIndex(l => l.id === activeIdRef.current),
+                    config: cloneConfig(configRef.current),
+                    separateChannels,
+                };
+                await saveProjectRecord(record);
+                setProjectId(id);
+                setProjectName(name);
+                toast('success', `Saved “${name}”`);
+            } catch (e) {
+                toast('error', `Save failed: ${(e as Error).message}`);
+            }
+        },
+        [separateChannels, toast]
+    );
+
+    const openProject = useCallback(
+        async (id: string) => {
+            if (glicEngine.isBusy) return;
+            try {
+                const rec = await getProject(id);
+                if (!rec) throw new Error('project not found');
+                const source = await blobToImageData(rec.source);
+                const restored: GlitchLayer[] = await Promise.all(
+                    rec.layers.map(async sl => ({
+                        ...makeLayer(sl.name, await blobToImageData(sl.result), {
+                            mask: sl.mask ? new Uint8ClampedArray(sl.mask) : null,
+                            file: sl.file,
+                            resolved: sl.resolved ? Object.assign(new CodecConfig(), sl.resolved) : null,
+                            thumb: sl.thumb,
+                        }),
+                        visible: sl.visible,
+                        opacity: sl.opacity,
+                        blendMode: sl.blendMode,
+                    }))
+                );
+                setOriginalImage(source);
+                setLayers(restored);
+                setActiveLayerIdState(restored[rec.activeLayerIndex]?.id ?? restored[restored.length - 1]?.id ?? null);
+                setConfig(Object.assign(new CodecConfig(), rec.config));
+                setSeparateChannels(rec.separateChannels);
+                setHistory([]);
+                setSelectionState(null);
+                setLastSelection(null);
+                setResolved(null);
+                setLastSegments(null);
+                setProjectId(rec.id);
+                setProjectName(rec.name);
+                toast('success', `Opened “${rec.name}”`);
+            } catch (e) {
+                toast('error', `Could not open project: ${(e as Error).message}`);
+            }
+        },
+        [toast]
+    );
+
+    const newProject = useCallback(() => {
+        setOriginalImage(null);
+        setLayers([]);
+        setActiveLayerIdState(null);
+        setResolved(null);
+        setLastSegments(null);
+        setHistory([]);
+        setSelectionState(null);
+        setLastSelection(null);
+        setProjectId(null);
+        setProjectName('Untitled');
+    }, []);
+
+    // --- exports ---
+
+    const savePng = useCallback(async () => {
+        const img = processedRef.current;
+        if (!img) return;
+        try {
+            const canvas = imageDataToCanvas(img, filtersRef.current);
+            downloadBlob(await canvasToPngBlob(canvas), timestampedFilename('glic-image', 'png'));
+        } catch (e) {
+            toast('error', `Save failed: ${(e as Error).message}`);
+        }
+    }, [toast]);
+
+    const saveGlic = useCallback(() => {
+        const file = layersRef.current.find(l => l.id === activeIdRef.current)?.file ?? null;
+        if (!file) return;
+        toast('info', "Saved the active layer's full-frame stream (masks and blending live in the image, not the file)");
+        downloadBlob(
+            new Blob([file.buffer as ArrayBuffer], { type: 'application/octet-stream' }),
+            timestampedFilename('glic-output', 'glic')
+        );
+    }, [toast]);
+
     const importGlic = useCallback(
         async (bytes: Uint8Array, overrideHeader: boolean) => {
             if (glicEngine.isBusy) return;
@@ -519,6 +695,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             toast,
             dismissToast,
             loadImage,
+            projectName,
+            projectId,
+            saveProject,
+            openProject,
+            newProject,
+            savePng,
+            saveGlic,
             encodeNow,
             newLayerEncode,
             iterate,
@@ -557,6 +740,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             toast,
             dismissToast,
             loadImage,
+            projectName,
+            projectId,
+            saveProject,
+            openProject,
+            newProject,
+            savePng,
+            saveGlic,
             encodeNow,
             newLayerEncode,
             iterate,

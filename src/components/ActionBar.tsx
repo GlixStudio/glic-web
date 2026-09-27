@@ -1,12 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../core/AppContext';
 import { Play, Download, Undo2, Repeat, FileUp, X, Layers } from 'lucide-react';
-import {
-    imageDataToCanvas,
-    canvasToPngBlob,
-    downloadBlob,
-    timestampedFilename,
-} from '../core/imageio';
 import { HELP } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
 
@@ -18,14 +12,14 @@ export const ActionBar: React.FC = () => {
         isProcessing,
         progress,
         canUndo,
-        filters,
         encodeNow,
         newLayerEncode,
         iterate,
         undo,
         cancel,
         importGlic,
-        toast,
+        savePng,
+        saveGlic,
     } = useApp();
 
     const glicInputRef = useRef<HTMLInputElement>(null);
@@ -33,7 +27,7 @@ export const ActionBar: React.FC = () => {
     const [iterateCount, setIterateCount] = useState(5);
 
     // keyboard shortcuts (plain keys, ignored while typing in a field)
-    const actions = useRef({ encodeNow, newLayerEncode, undo, saveImage: () => {}, saveGlic: () => {}, openImport: () => {} });
+    const actions = useRef({ encodeNow, newLayerEncode, undo, savePng: () => {}, saveGlic: () => {}, openImport: () => {} });
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
@@ -43,7 +37,7 @@ export const ActionBar: React.FC = () => {
                 case 'e': e.preventDefault(); a.encodeNow(); break;
                 case 'r': e.preventDefault(); a.newLayerEncode(); break;
                 case 'u': e.preventDefault(); a.undo(); break;
-                case 's': e.preventDefault(); a.saveImage(); break;
+                case 's': e.preventDefault(); a.savePng(); break;
                 case 'g': e.preventDefault(); a.saveGlic(); break;
                 case 'i': e.preventDefault(); a.openImport(); break;
             }
@@ -51,25 +45,6 @@ export const ActionBar: React.FC = () => {
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, []);
-
-    const saveImage = async () => {
-        if (!processed) return;
-        try {
-            const canvas = imageDataToCanvas(processed, filters);
-            downloadBlob(await canvasToPngBlob(canvas), timestampedFilename('glic-image', 'png'));
-        } catch (e) {
-            toast('error', `Save failed: ${(e as Error).message}`);
-        }
-    };
-
-    const saveGlic = () => {
-        if (!encodedFile) return;
-        toast('info', "Saved the active layer's full-frame stream (masks and blending live in the image, not the file)");
-        downloadBlob(
-            new Blob([encodedFile.buffer as ArrayBuffer], { type: 'application/octet-stream' }),
-            timestampedFilename('glic-output', 'glic')
-        );
-    };
 
     const onGlicFile = async (file: File) => {
         const buf = await file.arrayBuffer();
@@ -82,7 +57,7 @@ export const ActionBar: React.FC = () => {
             encodeNow,
             newLayerEncode,
             undo,
-            saveImage,
+            savePng,
             saveGlic,
             openImport: () => glicInputRef.current?.click(),
         };
@@ -199,7 +174,7 @@ export const ActionBar: React.FC = () => {
                             ? 'text-ink/30 bg-cream-3 border border-ink/20 cursor-not-allowed'
                             : 'text-ink bg-cream-2 hover:bg-white border border-ink'
                     }`}
-                    onClick={saveImage}
+                    onClick={savePng}
                     disabled={!processed}
                 >
                     <Download className="w-3 h-3" /> PNG
