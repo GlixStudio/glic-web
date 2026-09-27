@@ -305,12 +305,20 @@ export const CanvasViewer: React.FC = () => {
         setDraftTick(t => t + 1);
         if (!g || !imgW) return;
         const moved = Math.abs(g.lastImg.x - g.startImg.x) > 1 && Math.abs(g.lastImg.y - g.startImg.y) > 1;
+        // Photoshop behavior: a plain click with a shape tool starts over -
+        // it deselects (only in replace mode; Shift/Alt clicks leave the mask alone)
+        const clickAway = () => {
+            if (g.mode === 'replace') setSelection(null);
+        };
         if (g.kind === 'rect') {
             if (moved) applyCommit(rectMask(imgW, imgH, g.startImg.x, g.startImg.y, g.lastImg.x, g.lastImg.y), g.mode);
+            else clickAway();
         } else if (g.kind === 'ellipse') {
             if (moved) applyCommit(ellipseMask(imgW, imgH, g.startImg.x, g.startImg.y, g.lastImg.x, g.lastImg.y), g.mode);
+            else clickAway();
         } else if (g.kind === 'lasso') {
-            if (g.pointsImg.length >= 3) applyCommit(lassoMask(imgW, imgH, g.pointsImg), g.mode);
+            if (g.pointsImg.length >= 3 && moved) applyCommit(lassoMask(imgW, imgH, g.pointsImg), g.mode);
+            else clickAway();
         } else if (g.kind === 'wand') {
             const sample = processed ?? originalImage;
             const clicked =
