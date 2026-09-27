@@ -600,7 +600,11 @@ export const CanvasViewer: React.FC = () => {
                     />
 
                     {/* toolbar */}
-                    <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                    <div
+                        className="absolute top-4 right-4 z-10 flex items-center gap-2"
+                        onPointerDown={e => e.stopPropagation()}
+                        onPointerUp={e => e.stopPropagation()}
+                    >
                         <div className="flex items-center bg-zinc-900/90 border border-zinc-700 rounded-lg backdrop-blur-sm overflow-hidden">
                             <button
                                 onClick={() => setZoomClamped((zoom ?? fitScale) / 1.2)}

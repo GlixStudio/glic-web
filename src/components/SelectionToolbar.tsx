@@ -62,7 +62,13 @@ export const SelectionToolbar: React.FC<Props> = ({
     const maskInputRef = useRef<HTMLInputElement>(null);
 
     return (
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex items-start gap-2">
+        // stop pointer events here: clicks on the toolbar must not become canvas
+        // gestures (a leaked pointerup would read as click-away and clear the mask)
+        <div
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex items-start gap-2"
+            onPointerDown={e => e.stopPropagation()}
+            onPointerUp={e => e.stopPropagation()}
+        >
             {/* tool strip */}
             <div className="flex flex-col bg-zinc-900/90 border border-zinc-700 rounded-lg backdrop-blur-sm overflow-hidden">
                 {TOOLS.map(t => (
