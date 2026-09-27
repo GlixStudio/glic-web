@@ -7,20 +7,24 @@ import { FiltersPanel } from './FiltersPanel';
 import { TilesetPanel } from './TilesetPanel';
 import { ActionBar } from './ActionBar';
 import { AboutModal } from './AboutModal';
+import { Toggle } from './controls/Toggle';
 import { Info } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
-    const { separateChannels } = useApp();
+    const { separateChannels, setSeparateChannels } = useApp();
     const [activeTab, setActiveTab] = useState(0);
     const [showAbout, setShowAbout] = useState(false);
 
     const tabs = ['Global', 'Channels'];
     const tab = Math.min(activeTab, tabs.length - 1);
 
+    // the sidebar only widens where the extra room is used: the channel matrix
+    const wide = separateChannels && tab === 1;
+
     return (
         <div
             className={`${
-                separateChannels ? 'w-[30rem]' : 'w-80'
+                wide ? 'w-[30rem] max-w-[65vw]' : 'w-80'
             } max-w-[94vw] bg-zinc-950 border-r border-zinc-900 flex flex-col h-full shadow-2xl z-20 transition-[width] duration-200`}
         >
             <div className="px-5 py-4 border-b border-zinc-900 bg-zinc-950 flex items-center justify-between">
@@ -57,7 +61,19 @@ export const Sidebar: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-zinc-950">
                 <div className="p-4 space-y-4">
-                    {tab === 0 ? <GlobalSettings /> : separateChannels ? <ChannelMatrix /> : <ChannelSettings />}
+                    {tab === 0 ? (
+                        <GlobalSettings />
+                    ) : (
+                        <>
+                            <Toggle
+                                label="Separate channels"
+                                checked={separateChannels}
+                                onChange={setSeparateChannels}
+                                title="Off: one set of settings drives all three channels. On: tune each channel individually."
+                            />
+                            {separateChannels ? <ChannelMatrix /> : <ChannelSettings />}
+                        </>
+                    )}
 
                     <FiltersPanel />
                     <TilesetPanel />
