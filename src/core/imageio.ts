@@ -1,0 +1,66 @@
+// Small canvas/file helpers shared by the UI.
+
+import { filtersToCss, type ImageFilters } from './filters';
+
+export const fileToImageData = (file: File): Promise<ImageData> =>
+    new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            if (!ctx) return reject(new Error('no 2d context'));
+            ctx.drawImage(img, 0, 0);
+            resolve(ctx.getImageData(0, 0, canvas.width, canvas.height));
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('failed to load image'));
+        };
+        img.src = url;
+    });
+
+/** Draws ImageData to a fresh canvas, optionally baking in the CSS filters. */
+export const imageDataToCanvas = (img: ImageData, filters?: ImageFilters): HTMLCanvasElement => {
+    const src = document.createElement('canvas');
+    src.width = img.width;
+    src.height = img.height;
+    src.getContext('2d')!.putImageData(img, 0, 0);
+    if (!filters) return src;
+
+    const out = document.createElement('canvas');
+    out.width = img.width;
+    out.height = img.height;
+    const ctx = out.getContext('2d')!;
+    ctx.imageSmoothingEnabled = false;
+    ctx.filter = filtersToCss(filters);
+    ctx.drawImage(src, 0, 0);
+    return out;
+};
+
+export const timestampedFilename = (prefix: string, extension: string) => {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    return `${prefix}_${timestamp}.${extension}`;
+};
+
+export const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 100);
+};
+
+export const canvasToPngBlob = (canvas: HTMLCanvasElement): Promise<Blob> =>
+    new Promise((resolve, reject) => {
+        canvas.toBlob(b => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png');
+    });
