@@ -44,7 +44,37 @@ export interface GlitchLayer {
     thumb: string | null;
 }
 
-export const MAX_LAYERS = 10;
+// Layers are limited by memory, not by count: each one carries a full-frame
+// ImageData (plus mask and .glic stream), so small images can stack dozens of
+// layers while print-size sources hit an honest RAM ceiling instead of a tab crash.
+export const LAYER_MEMORY_BUDGET = 800 * 1024 * 1024; // bytes
+
+export const layerUsageBytes = (layers: GlitchLayer[]): number =>
+    layers.reduce(
+        (sum, l) =>
+            sum +
+            l.result.data.byteLength +
+            (l.mask ? l.mask.byteLength : 0) +
+            (l.file ? l.file.byteLength : 0),
+        0
+    );
+
+export interface LayerBudget {
+    ok: boolean;
+    usedMB: number;
+    budgetMB: number;
+}
+
+/** Whether another full-frame layer of w x h fits within the memory budget. */
+export const canAddLayer = (layers: GlitchLayer[], w: number, h: number): LayerBudget => {
+    const used = layerUsageBytes(layers);
+    const next = w * h * 4;
+    return {
+        ok: used + next <= LAYER_MEMORY_BUDGET,
+        usedMB: Math.round(used / 1024 / 1024),
+        budgetMB: Math.round(LAYER_MEMORY_BUDGET / 1024 / 1024),
+    };
+};
 
 let layerCounter = 0;
 

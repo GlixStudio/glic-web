@@ -118,3 +118,17 @@ describe('compositeLayers', () => {
         }
     });
 });
+
+describe('layer memory budget', () => {
+    it('allows many small layers, blocks past the budget', async () => {
+        const { canAddLayer, layerUsageBytes, LAYER_MEMORY_BUDGET } = await import('../layers');
+        const small = [makeLayer('a', img(8, 8, [0, 0, 0, 255]))];
+        expect(layerUsageBytes(small)).toBe(8 * 8 * 4);
+        expect(canAddLayer(small, 8, 8).ok).toBe(true);
+        // fake a stack that already fills the budget (metadata-only check)
+        const big = makeLayer('big', img(4, 4, [0, 0, 0, 255]));
+        big.file = { byteLength: LAYER_MEMORY_BUDGET } as unknown as Uint8Array;
+        expect(canAddLayer([big], 1024, 1024).ok).toBe(false);
+        expect(canAddLayer([big], 1024, 1024).usedMB).toBeGreaterThan(0);
+    });
+});

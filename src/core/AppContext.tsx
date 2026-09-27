@@ -3,7 +3,7 @@ import { CodecConfig, cloneConfig } from './Codec';
 import { glicEngine, type ChannelProgress } from './engine';
 import type { Segment } from './Planes';
 import { isEmptyMask, type Mask } from './selection';
-import { compositeLayers, makeLayer, MAX_LAYERS, type GlitchLayer } from './layers';
+import { compositeLayers, makeLayer, canAddLayer, type GlitchLayer } from './layers';
 import { imageDataToThumbnail } from './imageio';
 
 import { DEFAULT_FILTERS, type ImageFilters } from './filters';
@@ -236,8 +236,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const ls = layersRef.current;
             const i = ls.findIndex(l => l.id === id);
             if (i < 0) return;
-            if (ls.length >= MAX_LAYERS) {
-                toast('info', `Layer limit reached (${MAX_LAYERS})`);
+            const budget = canAddLayer(ls, ls[i].result.width, ls[i].result.height);
+            if (!budget.ok) {
+                toast('error', `Layer memory is full (${budget.usedMB} of ${budget.budgetMB} MB) - flatten or delete layers to continue`);
                 return;
             }
             snapshot();
@@ -380,8 +381,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const source = originalRef.current;
         if (!source || glicEngine.isBusy) return;
         const ls = layersRef.current;
-        if (ls.length >= MAX_LAYERS) {
-            toast('info', `Layer limit reached (${MAX_LAYERS}) - flatten or delete a layer first`);
+        const budget = canAddLayer(ls, source.width, source.height);
+        if (!budget.ok) {
+            toast('error', `Layer memory is full (${budget.usedMB} of ${budget.budgetMB} MB) - flatten or delete layers to continue`);
             return;
         }
         try {
