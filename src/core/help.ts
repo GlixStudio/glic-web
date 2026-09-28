@@ -181,6 +181,11 @@ export const HELP = {
         body: 'Bakes the whole stack into a new baseline image and clears the layers - like flattening in Photoshop. Undoable. Do it when a stage is "done" and you want to build on top.',
     },
 
+    // --- image / export ---
+    resample: { title: 'Resampling', body: 'Smooth averages pixels when shrinking and blends them when enlarging - best for photos. Crisp pixels copies the nearest pixel, keeping glitch blocks razor sharp - best for pixel art, tiles and laser engraving.' },
+    snapTiles: { title: 'Trim to tiles', body: 'Crops the canvas down to the nearest multiple of the tile size, so tilesets and spritesheets use every pixel with no leftover strip.' },
+    canvasAnchor: { title: 'Anchor', body: 'Where the existing image sits on the new canvas. The center keeps it centered; a corner grows or crops away from that corner.' },
+
     // --- viewer ---
     zoomControls: { title: 'Zoom', body: 'Mouse wheel zooms too. F toggles between fit and 100%; drag to pan while zoomed.', shortcut: 'F' },
     compare: { title: 'Compare', body: 'Hold to peek at the untouched source image.', shortcut: 'C (hold)' },

@@ -3,9 +3,10 @@ import { useApp } from '../core/AppContext';
 import { sendView, type ViewCommand } from '../core/viewBus';
 import { fileToImageData } from '../core/imageio';
 import { ProjectsModal } from './ProjectsModal';
+import { ImageSizeModal, CanvasSizeModal } from './SizeModals';
 
-// Pattrn-style menu bar: File (project lifecycle, import/export) and View
-// (zoom / segmentation / chrome). Zoom state lives in the canvas viewer, so
+// Pattrn-style menu bar: File (project lifecycle, import/export), Image
+// (image and canvas size) and View (zoom / segmentation / chrome). Zoom state lives in the canvas viewer, so
 // View items dispatch commands over the view bus.
 
 interface Item {
@@ -17,13 +18,14 @@ interface Item {
 }
 
 type Separator = 'sep';
+type MenuId = 'file' | 'image' | 'view';
 
 const MenuButton: React.FC<{
-    id: 'file' | 'view';
+    id: MenuId;
     label: string;
     items: (Item | Separator)[];
-    openMenu: 'file' | 'view' | null;
-    setOpenMenu: React.Dispatch<React.SetStateAction<'file' | 'view' | null>>;
+    openMenu: MenuId | null;
+    setOpenMenu: React.Dispatch<React.SetStateAction<MenuId | null>>;
 }> = ({ id, label, items, openMenu, setOpenMenu }) => (
     <div className="relative">
         <button
@@ -88,7 +90,8 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         toast,
     } = useApp();
 
-    const [openMenu, setOpenMenu] = useState<'file' | 'view' | null>(null);
+    const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
+    const [dialog, setDialog] = useState<'image-size' | 'canvas-size' | null>(null);
     const [showProjects, setShowProjects] = useState(false);
     const [showSaveAs, setShowSaveAs] = useState(false);
     const [saveAsName, setSaveAsName] = useState('');
@@ -165,6 +168,11 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         { label: 'Export .glic', hint: 'G', disabled: !encodedFile, onClick: saveGlic },
     ];
 
+    const imageItems: (Item | Separator)[] = [
+        { label: 'Image size…', disabled: !originalImage, onClick: () => setDialog('image-size') },
+        { label: 'Canvas size…', disabled: !originalImage, onClick: () => setDialog('canvas-size') },
+    ];
+
     const view = (cmd: ViewCommand): (() => void) => () => sendView(cmd);
     const viewItems: (Item | Separator)[] = [
         { label: 'Zoom in', onClick: view('zoom-in') },
@@ -180,6 +188,7 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
     return (
         <div ref={rootRef} className="flex items-center gap-0.5">
             <MenuButton id="file" label="File" items={fileItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
+            <MenuButton id="image" label="Image" items={imageItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
             <MenuButton id="view" label="View" items={viewItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
             <span className="ml-2 text-[11px] text-ink-2 truncate max-w-40" title={projectName}>
                 {projectName}
@@ -216,6 +225,8 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
             />
 
             <ProjectsModal open={showProjects} onClose={() => setShowProjects(false)} />
+            {dialog === 'image-size' && originalImage && <ImageSizeModal onClose={() => setDialog(null)} />}
+            {dialog === 'canvas-size' && originalImage && <CanvasSizeModal onClose={() => setDialog(null)} />}
 
             {showSaveAs && (
                 <div
