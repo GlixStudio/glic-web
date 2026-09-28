@@ -127,7 +127,7 @@ export const HELP = {
     toolBrush: { title: 'Mask brush', body: 'Paint the selection directly. Hold Alt to erase, [ and ] to resize the brush.', shortcut: 'B' },
     combineMode: {
         title: 'Combine mode',
-        body: 'How a new selection meets the existing one: replace it, add to it (or hold Shift), or subtract from it (or hold Alt).',
+        body: 'How a new selection meets the existing one: replace it, add to it (or hold Shift), subtract from it (or hold Alt), or keep only the overlap (Intersect, or hold Shift+Alt).',
     },
     tolerance: { title: 'Tolerance', body: 'How different a color may be and still be picked up by the wand. Low = strict, high = grabs half the image.' },
     contiguous: { title: 'Contiguous', body: 'On: the wand only spreads through connected pixels. Off: it selects that color everywhere in the image.' },
@@ -141,7 +141,25 @@ export const HELP = {
     clearSelection: { title: 'Clear', body: 'Deselects. The mask is remembered - Redo brings it back.', shortcut: 'Esc / D' },
     reselect: { title: 'Reselect', body: 'Restores the last cleared selection.' },
     featherApply: { title: 'Feather selection', body: 'Blurs the current selection’s edges by the feather amount, once.' },
-    maskIn: { title: 'Import mask', body: 'Load any grayscale image as the selection: white = selected, black = not, grays in between. Author masks in any tool and reuse them across pieces.' },
+    maskIn: {
+        title: 'Import mask',
+        body: 'Load any image as a selection. A dialog lets you choose what counts as selected (brightness, transparency, a picked color, one channel), then size, rotate, flip, move or repeat it over the canvas. Imported masks are kept in the Masks library.',
+    },
+    maskSource: {
+        title: 'Mask from',
+        body: 'Which property of the imported image becomes the selection. Brightness: white selected, black not. Transparency: opaque pixels selected (great for PNG cut-outs). Pick a color: everything close to one color, like a green screen. A single channel or saturation pulls hidden structure out of photos.',
+    },
+    maskSourceImage: { title: 'Mask image', body: 'The image you imported. With “Pick a color” active, click here to choose the color that should be selected.' },
+    maskTolerance: { title: 'Tolerance', body: 'How far a color may drift from the picked one and still count as a full match. Softness then fades the match out gradually instead of cutting it hard.' },
+    maskLevels: { title: 'Black / white point', body: 'Levels for the mask: everything darker than the black point becomes unselected, everything brighter than the white point fully selected. Pull them together to boost a faint mask.' },
+    maskThreshold: { title: 'Hard edge', body: 'Snaps every gray to fully selected or not at the threshold. Use it for crisp masks for laser engraving or screen printing.' },
+    maskFit: { title: 'Fit', body: 'How the mask image is sized to the canvas before your own scale: stretch to fill, fit inside with proportions, fill and crop, or keep its original pixel size.' },
+    maskTile: { title: 'Repeat as pattern', body: 'Tiles the mask across the whole canvas, anchored at the center. Combine with Scale and 1:1 for repeating motifs and fabric repeats.' },
+    saveSelectionMask: { title: 'Save selection', body: 'Stores the current selection in the Masks library so you can bring it back later, on this or any other image.' },
+    masksPanel: {
+        title: 'Masks library',
+        body: 'Saved masks, remembered in this browser across images and projects. Click one to select it, use the buttons to add, subtract or intersect it with the current selection, put it on the active layer, or place it again with new size and rotation.',
+    },
     maskOut: { title: 'Export mask', body: 'Save the current selection as a grayscale PNG to reuse later or refine elsewhere.' },
 
     // --- layers ---

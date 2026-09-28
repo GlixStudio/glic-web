@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../core/AppContext';
+import { openMaskImport } from '../core/maskImportBus';
 import { filtersToCss } from '../core/filters';
 import { visualizeSegmentation } from '../core/visualize';
 import { fileToImageData, imageDataToCanvas, canvasToPngBlob, downloadBlob, timestampedFilename } from '../core/imageio';
@@ -15,7 +16,6 @@ import {
     feather,
     coverage,
     maskOverlay,
-    luminanceMask,
     maskToImageData,
     DEFAULT_TOOL_OPTIONS,
     type CombineMode,
@@ -213,24 +213,13 @@ export const CanvasViewer: React.FC = () => {
         async (file: File) => {
             if (!imgW) return;
             try {
-                let img = await fileToImageData(file);
-                if (img.width !== imgW || img.height !== imgH) {
-                    const scaled = document.createElement('canvas');
-                    scaled.width = imgW;
-                    scaled.height = imgH;
-                    const ctx = scaled.getContext('2d')!;
-                    ctx.drawImage(imageDataToCanvas(img), 0, 0, imgW, imgH);
-                    img = ctx.getImageData(0, 0, imgW, imgH);
-                    toast('info', `Mask resized ${file.name}: ${imgW}×${imgH}`);
-                }
-                const mask = luminanceMask(img);
-                setSelection(mask);
-                toast('success', 'Mask imported (white = selected)');
+                const image = await fileToImageData(file);
+                openMaskImport({ image, name: file.name.replace(/\.[^.]+$/, '') });
             } catch {
                 toast('error', 'Could not read mask image');
             }
         },
-        [imgW, imgH, setSelection, toast]
+        [imgW, toast]
     );
 
     const exportMask = useCallback(async () => {
@@ -273,7 +262,7 @@ export const CanvasViewer: React.FC = () => {
     // --- pointer routing ---
 
     const gestureMode = (e: React.PointerEvent): CombineMode =>
-        e.shiftKey ? 'add' : e.altKey ? 'subtract' : toolOptions.mode;
+        e.shiftKey && e.altKey ? 'intersect' : e.shiftKey ? 'add' : e.altKey ? 'subtract' : toolOptions.mode;
 
     const usingPan = (e: React.PointerEvent) => tool === 'move' || spaceHeld || e.button === 1;
 

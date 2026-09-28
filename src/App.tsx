@@ -6,6 +6,7 @@ import { Toasts } from './components/Toasts';
 import { Tour } from './components/Tour';
 import { AboutModal } from './components/AboutModal';
 import { MenuBar } from './components/MenuBar';
+import { MaskImportHost } from './components/MaskImportModal';
 import { PanelLeft, CircleHelp } from 'lucide-react';
 
 function App() {
@@ -61,6 +62,7 @@ function App() {
 
                 <Toasts />
                 <Tour />
+                <MaskImportHost />
                 <AboutModal open={showAbout} onClose={() => setShowAbout(false)} />
             </div>
         </AppProvider>

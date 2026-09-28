@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { type CombineMode, type SelectionTool, type ToolOptions } from '../core/selection';
 import { HELP, type HelpEntry } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
-import { Hand, SquareDashed, CircleDashed, Lasso, Wand2, Paintbrush, Plus, Minus, Square, XCircle, RotateCcw, Blend, FileUp, FileDown } from 'lucide-react';
+import { Hand, SquareDashed, CircleDashed, Lasso, Wand2, Paintbrush, Plus, Minus, Square, XCircle, RotateCcw, Blend, FileUp, FileDown, SquaresIntersect } from 'lucide-react';
 
 interface ToolDef {
     id: SelectionTool;
@@ -23,6 +23,7 @@ const MODES: { id: CombineMode; icon: React.ReactNode; label: string }[] = [
     { id: 'replace', icon: <Square className="w-3.5 h-3.5" />, label: 'New selection' },
     { id: 'add', icon: <Plus className="w-3.5 h-3.5" />, label: 'Add (Shift)' },
     { id: 'subtract', icon: <Minus className="w-3.5 h-3.5" />, label: 'Subtract (Alt)' },
+    { id: 'intersect', icon: <SquaresIntersect className="w-3.5 h-3.5" />, label: 'Intersect (Shift+Alt)' },
 ];
 
 interface Props {
