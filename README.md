@@ -5,10 +5,11 @@ GLIC Web is a web-based vibe coded port of the **GLIC** (GLitch Image Codec) ima
 ## Features
 
 - All 67 original JWave wavelets, bit-faithful to desktop GLIC (coefficients extracted from the exact JWave.jar the original ships with)
+- 15 extra `~b-` wavelets of our own (reverse biorthogonals, the 4-tap orthogonal lattice family, rotors, splines, sinc, Morlet, noise, slant) - ids 68+, not decodable by desktop GLIC
 - `.glic` files byte-compatible with desktop GLIC — encode here, decode there, databend in a hex editor, and re-import glitched files
 - Full decoder, including GLIC's "override header" glitch-decode trick
 - 16 color spaces, 18 block predictors, quad-tree segmentation, RAW/PACKED/RLE encodings
-- 144 bundled community presets + custom presets with JSON export/import
+- 144 bundled community presets, 14 `~b-` presets built on the new wavelets, and custom presets with JSON export/import
 - Parallel encoding across three worker threads with live progress and cancel
 - Glitch layer stack: each encode lands on a layer with its own mask, opacity, and blend mode (Normal/Multiply/Screen/Overlay/Darken/Lighten/Difference/Add), all applied non-destructively at composite time — retune a glitch after encoding without re-running the codec
 - Photoshop-style selection tools — rect/ellipse marquee, lasso, magic wand, mask brush, with add/subtract modes, feather, invert, and grayscale mask import/export — so encoding glitches only the selected region (soft-mask composited at full resolution, print-safe)
