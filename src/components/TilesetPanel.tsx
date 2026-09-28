@@ -1,8 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../core/AppContext';
 import { Slider } from './controls/Slider';
 import { Select } from './controls/Select';
-import { Layers, ChevronDown, ChevronUp, Download, Play } from 'lucide-react';
+import { Layers, ChevronDown, ChevronUp, Download, Play, Grid3x3, Shuffle } from 'lucide-react';
+import { Toggle } from './controls/Toggle';
+import { HELP } from '../core/help';
+import {
+    cutTiles,
+    filterTiles,
+    orderTiles,
+    layoutSheet,
+    renderSheet,
+    sheetManifest,
+    SPRITE_ORDERS,
+    type SpriteOrder,
+} from '../core/spritesheet';
 import JSZip from 'jszip';
 import GIF from 'gif.js';
 // bundle the gif.js worker so GIF export works in production builds
@@ -18,8 +30,65 @@ export const TilesetPanel: React.FC = () => {
     const [quality, setQuality] = useState(80);
     const [busy, setBusy] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [order, setOrder] = useState<SpriteOrder>('hue');
+    const [reverse, setReverse] = useState(false);
+    const [seed, setSeed] = useState(1);
+    const [columns, setColumns] = useState(0);
+    const [padding, setPadding] = useState(0);
+    const [skipFlat, setSkipFlat] = useState(false);
+    const [dedupe, setDedupe] = useState(true);
+
+    // the adjusted composite, measured once per image/tile size (only while the panel is open)
+    const flat = useMemo(() => {
+        if (!expanded || !processed) return null;
+        const c = imageDataToCanvas(processed, filters);
+        return c.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, c.width, c.height);
+    }, [expanded, processed, filters]);
+    const measured = useMemo(() => (flat ? cutTiles(flat, tileSize) : []), [flat, tileSize]);
+    const sheet = useMemo(() => {
+        if (!flat || measured.length === 0) return null;
+        const kept = filterTiles(measured, { minContrast: skipFlat ? 2 : 0, dedupe });
+        const ordered = orderTiles(kept, order, { seed, reverse });
+        return { ordered, layout: layoutSheet(ordered.length, tileSize, columns, padding) };
+    }, [flat, measured, skipFlat, dedupe, order, seed, reverse, tileSize, columns, padding]);
+
+    const previewRef = useRef<HTMLCanvasElement>(null);
+    useEffect(() => {
+        const c = previewRef.current;
+        if (!c || !sheet || !flat) return;
+        const full = renderSheet(flat, sheet.ordered, sheet.layout, tileSize);
+        const k = Math.min(1, 264 / full.width, 200 / full.height);
+        c.width = Math.max(1, Math.round(full.width * k));
+        c.height = Math.max(1, Math.round(full.height * k));
+        const ctx = c.getContext('2d')!;
+        ctx.imageSmoothingEnabled = k < 1;
+        ctx.drawImage(imageDataToCanvas(full), 0, 0, c.width, c.height);
+    }, [sheet, flat, tileSize]);
 
     if (!processed) return null;
+
+    const generateSheet = async () => {
+        if (!sheet || !flat) return;
+        setBusy(true);
+        try {
+            const img = renderSheet(flat, sheet.ordered, sheet.layout, tileSize);
+            const manifest = sheetManifest(sheet.ordered, sheet.layout, tileSize, {
+                image: 'spritesheet.png',
+                order,
+                padding,
+                source: { width: flat.width, height: flat.height },
+            });
+            const zip = new JSZip();
+            zip.file('spritesheet.png', await canvasToPngBlob(imageDataToCanvas(img)));
+            zip.file('spritesheet.json', JSON.stringify(manifest, null, 2));
+            downloadBlob(await zip.generateAsync({ type: 'blob' }), timestampedFilename(`spritesheet-${tileSize}px-${order}`, 'zip'));
+            toast('success', `Spritesheet: ${sheet.ordered.length} tiles, ${img.width}×${img.height}`);
+        } catch (e) {
+            toast('error', `Spritesheet failed: ${(e as Error).message}`);
+        } finally {
+            setBusy(false);
+        }
+    };
 
     const sourceTiles = (): HTMLCanvasElement[] | null => {
         const source = imageDataToCanvas(processed, filters);
@@ -163,8 +232,9 @@ export const TilesetPanel: React.FC = () => {
                 <div className="space-y-3">
                     <Select
                         label="Tile size"
+                        help={HELP.tileSize}
                         value={tileSize}
-                        options={[16, 32, 64].map(v => ({ label: `${v}×${v}`, value: v }))}
+                        options={[8, 16, 24, 32, 48, 64, 96, 128, 256].map(v => ({ label: `${v}×${v}`, value: v }))}
                         onChange={setTileSize}
                     />
                     <button
@@ -174,6 +244,46 @@ export const TilesetPanel: React.FC = () => {
                     >
                         <Download className="w-4 h-4" /> Tileset ZIP
                     </button>
+
+                    <div className="pt-3 border-t border-line space-y-3">
+                        <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider">
+                            <Grid3x3 className="w-3 h-3" /> Spritesheet
+                        </div>
+                        <Select label="Arrange tiles by" help={HELP.spriteOrder} value={order} options={SPRITE_ORDERS} onChange={setOrder} />
+                        {order === 'random' && (
+                            <button
+                                onClick={() => setSeed(s => s + 1)}
+                                className="w-full py-1.5 rounded-lg text-[11px] font-bold bg-cream-2 hover:bg-white text-ink border border-ink flex items-center justify-center gap-1.5"
+                            >
+                                <Shuffle className="w-3.5 h-3.5" /> Reshuffle (seed {seed})
+                            </button>
+                        )}
+                        <Toggle label="Reverse order" checked={reverse} onChange={setReverse} />
+                        <Slider label="Columns" value={columns} min={0} max={64} onChange={setColumns} format={v => (v === 0 ? 'auto' : `${v}`)} />
+                        <Slider label="Padding" value={padding} min={0} max={8} onChange={setPadding} format={v => `${v}px`} />
+                        <Toggle label="Skip flat tiles" help={HELP.spriteSkipFlat} checked={skipFlat} onChange={setSkipFlat} />
+                        <Toggle label="Skip duplicates" checked={dedupe} onChange={setDedupe} />
+                        {sheet && (
+                            <div className="space-y-1">
+                                <div className="rounded-md border border-ink bg-[repeating-conic-gradient(#ddd_0%_25%,#fff_0%_50%)] bg-[length:10px_10px] p-1 flex justify-center">
+                                    <canvas ref={previewRef} style={{ imageRendering: 'pixelated' }} />
+                                </div>
+                                <p className="text-[10px] text-ink-2 font-mono">
+                                    {sheet.ordered.length} of {measured.length} tiles · {sheet.layout.columns}×{sheet.layout.rows} ·{' '}
+                                    {sheet.layout.width}×{sheet.layout.height}px
+                                </p>
+                            </div>
+                        )}
+                        <button
+                            onClick={generateSheet}
+                            disabled={busy || !sheet || sheet.ordered.length === 0}
+                            className="w-full py-2 rounded-lg font-bold text-sm bg-cream-2 hover:bg-white disabled:bg-cream-3 disabled:text-ink/30 text-ink border border-ink transition-all flex items-center justify-center gap-2"
+                        >
+                            <Download className="w-4 h-4" /> Spritesheet PNG + JSON
+                        </button>
+                    </div>
+
+                    <div className="pt-3 border-t border-line" />
 
                     <Select
                         label="Animation format"

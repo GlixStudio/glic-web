@@ -190,6 +190,13 @@ export const HELP = {
     exportCrop: { title: 'Crop to selection', body: 'Exports only the bounding box of the current selection.' },
     exportAlpha: { title: 'Selection as transparency', body: 'Makes everything outside the selection transparent - for stickers, cut files and overlays. PNG and WebP only.' },
 
+    spriteOrder: {
+        title: 'Arrange tiles by',
+        body: 'How the cut tiles are laid out on the sheet: as cut, shuffled (reshuffle for a new seed), by dominant color around the hue wheel, brightness, saturation, by shape (flat to busy, or horizontal to vertical structure), or chained so each tile sits next to its most similar one. The JSON lists every tile’s color and shape values for pattern generators.',
+    },
+    spriteSkipFlat: { title: 'Skip flat tiles', body: 'Leaves out tiles with almost no variation (solid color), which usually make dull pattern pieces.' },
+    tileSize: { title: 'Tile size', body: 'Size of each square tile cut from the image. Only whole tiles are used - trim the canvas to a multiple (Image > Canvas size) to use every pixel.' },
+
     // --- viewer ---
     zoomControls: { title: 'Zoom', body: 'Mouse wheel zooms too. F toggles between fit and 100%; drag to pan while zoomed.', shortcut: 'F' },
     compare: { title: 'Compare', body: 'Hold to peek at the untouched source image.', shortcut: 'C (hold)' },
