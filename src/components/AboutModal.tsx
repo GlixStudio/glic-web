@@ -21,6 +21,7 @@ const SHORTCUTS: [string, string][] = [
     ['X', 'Invert selection'],
     ['D / Esc', 'Deselect'],
     ['Shift / Alt drag', 'Add / subtract from selection'],
+    ['Shift+Alt drag', 'Intersect with selection'],
     ['Space (hold)', 'Pan while a tool is active'],
 ];
 
@@ -64,14 +65,56 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                             <h3 className="text-ink font-bold mb-2">Features</h3>
                             <ul className="list-disc list-inside space-y-1 ml-2 text-ink-2">
                                 <li>All 67 original JWave wavelets, bit-faithful to desktop GLIC</li>
+                                <li>
+                                    15 extra <code>~b-</code> wavelets and 14 <code>~b-</code> presets made for GLIC Web (desktop GLIC
+                                    cannot decode files that use them)
+                                </li>
                                 <li>Glitch layers with masks, opacity, and blend modes - non-destructive</li>
                                 <li>Projects saved in your browser (File → Save / Open), memory-bounded layers</li>
-                                <li>Selection tools: marquees, lasso, wand, brush, feather, mask import/export</li>
+                                <li>Selection tools: marquees, lasso, wand, brush, feather; add, subtract and intersect</li>
+                                <li>
+                                    Mask import: choose what counts as selected (brightness, transparency, a picked color, a
+                                    channel), then size, rotate, flip, move or repeat it over the canvas
+                                </li>
+                                <li>Masks library (dock → Masks): saved masks stay in this browser across images and projects</li>
+                                <li>Image → Image size / Canvas size, with crisp-pixel resampling and trim-to-tiles</li>
+                                <li>File → Export: PNG, JPEG or WebP, 1-8× upscaling, print DPI, crop to selection, cut-outs, ZIP of all layers</li>
                                 <li>16 color spaces, 18 block predictors, quad-tree segmentation</li>
                                 <li>.glic files compatible with the original desktop GLIC</li>
                                 <li>Decode with overridden settings, iterate, databend-tolerant import</li>
-                                <li>Tileset + GIF/WebM animation export</li>
+                                <li>
+                                    Tilesets, spritesheets sorted by color, brightness or shape (PNG + JSON for pattern
+                                    generators), and GIF/WebM animation
+                                </li>
                             </ul>
+                        </div>
+
+                        <div>
+                            <h3 className="text-ink font-bold mb-2">Menus</h3>
+                            <ul className="space-y-1 ml-2 text-ink-2 text-xs">
+                                <li>
+                                    <strong className="text-ink">File</strong> - new, open, save projects; import images and .glic
+                                    files; Export… for print-ready files; quick PNG and .glic export
+                                </li>
+                                <li>
+                                    <strong className="text-ink">Image</strong> - Image size (scale everything) and Canvas size
+                                    (crop or extend around an anchor)
+                                </li>
+                                <li>
+                                    <strong className="text-ink">View</strong> - zoom, fit, segmentation view, show or hide the
+                                    controls
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div>
+                            <h3 className="text-ink font-bold mb-2">Workflow for tiles &amp; patterns</h3>
+                            <ol className="list-decimal list-inside space-y-1 ml-2 text-ink-2 text-xs">
+                                <li>Image → Canvas size → Trim to tiles, so the image divides evenly.</li>
+                                <li>Encode, layer and mask until the glitch is right.</li>
+                                <li>Tileset &amp; animation → Spritesheet: pick a tile size and an arrangement.</li>
+                                <li>Download PNG + JSON; the JSON lists each tile’s dominant color and shape values.</li>
+                            </ol>
                         </div>
 
                         <div>
