@@ -6,7 +6,7 @@
 // interactive performance.
 
 export type Mask = Uint8ClampedArray;
-export type CombineMode = 'replace' | 'add' | 'subtract';
+export type CombineMode = 'replace' | 'add' | 'subtract' | 'intersect';
 
 export type SelectionTool = 'move' | 'rect' | 'ellipse' | 'lasso' | 'wand' | 'brush';
 
@@ -198,6 +198,8 @@ export const combine = (base: Mask | null, addition: Mask, mode: CombineMode): M
     const out = base.slice();
     if (mode === 'add') {
         for (let i = 0; i < out.length; i++) out[i] = Math.max(out[i], addition[i]);
+    } else if (mode === 'intersect') {
+        for (let i = 0; i < out.length; i++) out[i] = Math.min(out[i], addition[i]);
     } else {
         for (let i = 0; i < out.length; i++) out[i] = Math.max(0, out[i] - addition[i]);
     }
