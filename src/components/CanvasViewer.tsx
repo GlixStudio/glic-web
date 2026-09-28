@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../core/AppContext';
 import { openMaskImport } from '../core/maskImportBus';
+import { objectSelector } from '../core/objectSelect';
+import type { ObjectStatus } from './SelectionToolbar';
 import { filtersToCss } from '../core/filters';
 import { visualizeSegmentation } from '../core/visualize';
 import { fileToImageData, imageDataToCanvas, canvasToPngBlob, downloadBlob, timestampedFilename } from '../core/imageio';
@@ -193,6 +195,55 @@ export const CanvasViewer: React.FC = () => {
         [toolOptions.feather, imgW, imgH, selection, setSelection]
     );
 
+    // --- object-aware wand ---
+
+    const [objectStatus, setObjectStatus] = useState<ObjectStatus>(null);
+    const objectBusy = useRef(false);
+    // async results must combine with the selection as it is when they land
+    const applyCommitRef = useRef(applyCommit);
+    useEffect(() => {
+        applyCommitRef.current = applyCommit;
+    }, [applyCommit]);
+
+    const loadObjectModel = useCallback(async () => {
+        if (!objectSelector.loaded) setObjectStatus({ kind: 'loading', fraction: 0 });
+        try {
+            await objectSelector.load(f => setObjectStatus({ kind: 'loading', fraction: f }));
+            return true;
+        } catch (e) {
+            toast('error', `Object selection unavailable: ${(e as Error).message}. It needs an internet connection the first time.`);
+            return false;
+        } finally {
+            setObjectStatus(null);
+        }
+    }, [toast]);
+
+    // start the download as soon as Object mode is chosen, while the user aims
+    const objectMode = tool === 'wand' && toolOptions.wandMode === 'object';
+    useEffect(() => {
+        if (objectMode && !objectSelector.loaded) void loadObjectModel();
+    }, [objectMode, loadObjectModel]);
+
+    const runObjectSelect = useCallback(
+        async (points: { x: number; y: number }[], mode: CombineMode) => {
+            const sample = toolOptions.objectSource === 'source' ? originalImage : (processed ?? originalImage);
+            if (!sample || objectBusy.current) return;
+            objectBusy.current = true;
+            try {
+                if (!(await loadObjectModel())) return;
+                setObjectStatus({ kind: 'busy' });
+                const mask = await objectSelector.segment(sample, points);
+                applyCommitRef.current(mask, mode);
+            } catch (e) {
+                toast('error', `Object selection failed: ${(e as Error).message}`);
+            } finally {
+                objectBusy.current = false;
+                setObjectStatus(null);
+            }
+        },
+        [toolOptions.objectSource, originalImage, processed, loadObjectModel, toast]
+    );
+
     const selectAll = useCallback(() => {
         if (imgW) setSelection(rectMask(imgW, imgH, 0, 0, imgW, imgH));
     }, [imgW, imgH, setSelection]);
@@ -315,7 +366,7 @@ export const CanvasViewer: React.FC = () => {
         if (g.kind === 'brush') {
             paintBrush(g, prevImg, g.lastImg);
         }
-        if (g.kind === 'lasso') {
+        if (g.kind === 'lasso' || (g.kind === 'wand' && toolOptions.wandMode === 'object')) {
             const prev = g.pointsScreen[g.pointsScreen.length - 1];
             if (Math.abs(g.lastScreen.x - prev.x) + Math.abs(g.lastScreen.y - prev.y) > 2) {
                 g.pointsImg.push(g.lastImg);
@@ -350,6 +401,8 @@ export const CanvasViewer: React.FC = () => {
         } else if (g.kind === 'lasso') {
             if (g.pointsImg.length >= 3 && moved) applyCommit(lassoMask(imgW, imgH, g.pointsImg), g.mode);
             else clickAway();
+        } else if (g.kind === 'wand' && toolOptions.wandMode === 'object') {
+            void runObjectSelect(moved ? g.pointsImg : [g.startImg], g.mode);
         } else if (g.kind === 'wand') {
             const sample = processed ?? originalImage;
             const clicked =
@@ -413,7 +466,7 @@ export const CanvasViewer: React.FC = () => {
             ctx.beginPath();
             ctx.ellipse((sx + lx) / 2, (sy + ly) / 2, Math.abs(lx - sx) / 2, Math.abs(ly - sy) / 2, 0, 0, Math.PI * 2);
             ctx.stroke();
-        } else if (g.kind === 'lasso') {
+        } else if (g.kind === 'lasso' || (g.kind === 'wand' && g.pointsScreen.length > 1)) {
             ctx.beginPath();
             g.pointsScreen.forEach((p, i) => {
                 const px = p.x - cRect.left;
@@ -456,7 +509,11 @@ export const CanvasViewer: React.FC = () => {
                 case 'v': setTool('move'); break;
                 case 'm': setTool(t => (t === 'rect' ? 'ellipse' : 'rect')); break;
                 case 'l': setTool('lasso'); break;
-                case 'w': setTool('wand'); break;
+                case 'w':
+                    // W again switches the wand between color and object mode
+                    if (tool === 'wand') setToolOptions(o => ({ ...o, wandMode: o.wandMode === 'color' ? 'object' : 'color' }));
+                    else setTool('wand');
+                    break;
                 case 'b': setTool('brush'); break;
                 case '[': setToolOptions(o => ({ ...o, brushSize: Math.max(2, Math.round(o.brushSize / 1.25)) })); break;
                 case ']': setToolOptions(o => ({ ...o, brushSize: Math.min(512, Math.round(o.brushSize * 1.25)) })); break;
@@ -476,7 +533,7 @@ export const CanvasViewer: React.FC = () => {
             window.removeEventListener('keydown', down);
             window.removeEventListener('keyup', up);
         };
-    }, [zoom, setZoomClamped, displayed, selectAll, invertSelection, clearSelection]);
+    }, [zoom, setZoomClamped, displayed, selectAll, invertSelection, clearSelection, tool]);
 
     const handleFile = useCallback(
         async (file: File) => {
@@ -507,7 +564,15 @@ export const CanvasViewer: React.FC = () => {
 
     const showFilters = !comparing && processed && !showSegmentation;
     const toolActive = tool !== 'move' && !spaceHeld;
-    const cursor = panning ? 'grabbing' : toolActive ? 'crosshair' : scale > fitScale ? 'grab' : 'default';
+    const cursor = panning
+        ? 'grabbing'
+        : objectStatus && tool === 'wand'
+          ? 'progress'
+          : toolActive
+            ? 'crosshair'
+            : scale > fitScale
+              ? 'grab'
+              : 'default';
 
     return (
         <div
@@ -606,6 +671,7 @@ export const CanvasViewer: React.FC = () => {
                         onApplyFeather={applyFeatherNow}
                         onImportMask={importMask}
                         onExportMask={exportMask}
+                        objectStatus={objectStatus}
                     />
 
                     <Dock />

@@ -123,7 +123,13 @@ export const HELP = {
     toolRect: { title: 'Rectangular marquee', body: 'Drag a rectangle to select. Only the selection gets glitched on the next encode. Plain click deselects; Shift adds, Alt subtracts.', shortcut: 'M' },
     toolEllipse: { title: 'Elliptical marquee', body: 'Drag an ellipse to select. Press M again to switch back to the rectangle.', shortcut: 'M M' },
     toolLasso: { title: 'Lasso', body: 'Draw a freehand outline; it closes into a selection when you release.', shortcut: 'L' },
-    toolWand: { title: 'Magic wand', body: 'Click a color to select everything similar to it. Tolerance sets how loose "similar" is; Contiguous limits it to the connected area.', shortcut: 'W' },
+    toolWand: { title: 'Magic wand', body: 'Color mode: click a color to select everything similar to it. Object mode: click a thing (a face, a cup, a cat) and it selects that object’s outline. Press W again to switch modes.', shortcut: 'W' },
+    wandMode: {
+        title: 'Color or Object',
+        body: 'Color floods pixels that look alike. Object uses a small on-device AI model to find the whole object under your click, even when it has many colors. Drag along thin or awkward objects to guide it. Your image never leaves the browser; the model downloads once (~18 MB) and is cached.',
+        shortcut: 'W W',
+    },
+    objectSource: { title: 'Detect on', body: 'Original finds objects in the untouched source image - usually most accurate. Visible looks at the glitched composite you see, for selecting shapes the glitch created.' },
     toolBrush: { title: 'Mask brush', body: 'Paint the selection directly. Hold Alt to erase, [ and ] to resize the brush.', shortcut: 'B' },
     combineMode: {
         title: 'Combine mode',

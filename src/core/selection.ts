@@ -16,6 +16,10 @@ export interface ToolOptions {
     contiguous: boolean;
     brushSize: number;
     feather: number;
+    /** magic wand: flood by color, or ask the object model for the thing under the click */
+    wandMode: 'color' | 'object';
+    /** object mode looks at the untouched source or at what is on screen */
+    objectSource: 'source' | 'visible';
 }
 
 export const DEFAULT_TOOL_OPTIONS: ToolOptions = {
@@ -24,6 +28,8 @@ export const DEFAULT_TOOL_OPTIONS: ToolOptions = {
     contiguous: true,
     brushSize: 32,
     feather: 0,
+    wandMode: 'color',
+    objectSource: 'source',
 };
 
 export const newMask = (w: number, h: number): Mask => new Uint8ClampedArray(w * h);

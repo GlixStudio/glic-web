@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { type CombineMode, type SelectionTool, type ToolOptions } from '../core/selection';
+import { Segmented } from './controls/Modal';
 import { HELP, type HelpEntry } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
 import { Hand, SquareDashed, CircleDashed, Lasso, Wand2, Paintbrush, Plus, Minus, Square, XCircle, RotateCcw, Blend, FileUp, FileDown, SquaresIntersect } from 'lucide-react';
@@ -26,7 +27,10 @@ const MODES: { id: CombineMode; icon: React.ReactNode; label: string }[] = [
     { id: 'intersect', icon: <SquaresIntersect className="w-3.5 h-3.5" />, label: 'Intersect (Shift+Alt)' },
 ];
 
+export type ObjectStatus = null | { kind: 'loading'; fraction: number } | { kind: 'busy' };
+
 interface Props {
+    objectStatus: ObjectStatus;
     tool: SelectionTool;
     setTool: (t: SelectionTool) => void;
     options: ToolOptions;
@@ -58,6 +62,7 @@ export const SelectionToolbar: React.FC<Props> = ({
     onApplyFeather,
     onImportMask,
     onExportMask,
+    objectStatus,
 }) => {
     const showOptions = tool !== 'move';
     const maskInputRef = useRef<HTMLInputElement>(null);
@@ -128,32 +133,81 @@ export const SelectionToolbar: React.FC<Props> = ({
 
                     {tool === 'wand' && (
                         <>
-                            <Tooltip help={HELP.tolerance}>
-                            <label className="flex flex-col gap-1 text-[10px] text-ink-2 uppercase tracking-wide">
-                                <span className="flex justify-between">
-                                    Tolerance <span className="font-mono text-ink">{options.tolerance}</span>
-                                </span>
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={255}
-                                    value={options.tolerance}
-                                    onChange={e => setOptions({ ...options, tolerance: parseInt(e.target.value) })}
-                                    className="w-full h-1.5 bg-cream-3 rounded-lg appearance-none cursor-pointer accent-glx-orange"
-                                />
-                            </label>
+                            <Tooltip help={HELP.wandMode}>
+                                <div>
+                                    <Segmented<ToolOptions['wandMode']>
+                                        value={options.wandMode}
+                                        onChange={wandMode => setOptions({ ...options, wandMode })}
+                                        options={[
+                                            { value: 'color', label: 'Color' },
+                                            { value: 'object', label: 'Object' },
+                                        ]}
+                                    />
+                                </div>
                             </Tooltip>
-                            <Tooltip help={HELP.contiguous}>
-                            <label className="flex items-center justify-between text-[10px] text-ink-2 uppercase tracking-wide cursor-pointer">
-                                Contiguous
-                                <input
-                                    type="checkbox"
-                                    checked={options.contiguous}
-                                    onChange={e => setOptions({ ...options, contiguous: e.target.checked })}
-                                    className="accent-glx-green"
-                                />
-                            </label>
-                            </Tooltip>
+                            {options.wandMode === 'color' ? (
+                                <>
+                                <Tooltip help={HELP.tolerance}>
+                                <label className="flex flex-col gap-1 text-[10px] text-ink-2 uppercase tracking-wide">
+                                    <span className="flex justify-between">
+                                        Tolerance <span className="font-mono text-ink">{options.tolerance}</span>
+                                    </span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={255}
+                                        value={options.tolerance}
+                                        onChange={e => setOptions({ ...options, tolerance: parseInt(e.target.value) })}
+                                        className="w-full h-1.5 bg-cream-3 rounded-lg appearance-none cursor-pointer accent-glx-orange"
+                                    />
+                                </label>
+                                </Tooltip>
+                                <Tooltip help={HELP.contiguous}>
+                                <label className="flex items-center justify-between text-[10px] text-ink-2 uppercase tracking-wide cursor-pointer">
+                                    Contiguous
+                                    <input
+                                        type="checkbox"
+                                        checked={options.contiguous}
+                                        onChange={e => setOptions({ ...options, contiguous: e.target.checked })}
+                                        className="accent-glx-green"
+                                    />
+                                </label>
+                                </Tooltip>
+                                </>
+                            ) : (
+                                <>
+                                    <Tooltip help={HELP.objectSource}>
+                                        <div className="space-y-1">
+                                            <div className="text-[10px] text-ink-2 uppercase tracking-wide">Detect on</div>
+                                            <Segmented<ToolOptions['objectSource']>
+                                                value={options.objectSource}
+                                                onChange={objectSource => setOptions({ ...options, objectSource })}
+                                                options={[
+                                                    { value: 'source', label: 'Original' },
+                                                    { value: 'visible', label: 'Visible' },
+                                                ]}
+                                            />
+                                        </div>
+                                    </Tooltip>
+                                    {objectStatus?.kind === 'loading' ? (
+                                        <div className="space-y-1">
+                                            <div className="w-full bg-cream-3 rounded-full h-1.5 overflow-hidden">
+                                                <div
+                                                    className="bg-glx-orange h-full transition-all"
+                                                    style={{ width: `${Math.round(objectStatus.fraction * 100)}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-[10px] text-ink-2">Loading object model (once, ~18 MB)…</p>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[10px] text-ink-2 leading-snug">
+                                            {objectStatus?.kind === 'busy'
+                                                ? 'Finding the object…'
+                                                : 'Click an object, or drag along it. Shift adds, Alt subtracts, Shift+Alt intersects.'}
+                                        </p>
+                                    )}
+                                </>
+                            )}
                         </>
                     )}
 
