@@ -1,8 +1,17 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CodecConfig, cloneConfig } from './Codec';
 import { glicEngine, type ChannelProgress } from './engine';
 import type { Segment } from './Planes';
-import { isEmptyMask, type Mask } from './selection';
+import { combine, isEmptyMask, type CombineMode, type Mask } from './selection';
+import { putMask, removeMask, loadMasks, maskThumbnail, newMaskId, type SavedMask } from './maskStore';
+import {
+    resampleImage,
+    resampleMask,
+    resizeCanvas as resizeCanvasImage,
+    resizeCanvasMask,
+    type Anchor,
+    type ResampleMethod,
+} from './resize';
 import { compositeLayers, makeLayer, canAddLayer, type GlitchLayer } from './layers';
 import {
     imageDataToThumbnail,
@@ -109,6 +118,23 @@ interface AppState {
     undo: () => void;
     cancel: () => void;
     importGlic: (bytes: Uint8Array, overrideHeader: boolean) => Promise<void>;
+
+    // --- mask library (persisted in the browser, independent of images/projects) ---
+    masks: SavedMask[];
+    /** stores a mask (image-sized) in the library; returns its id */
+    saveMask: (mask: Mask, width: number, height: number, name?: string) => string;
+    renameMask: (id: string, name: string) => void;
+    deleteMask: (id: string) => void;
+    /** a library mask at the current image size (stretched when sizes differ) */
+    maskAtImageSize: (id: string) => Mask | null;
+    /** combines a library mask into the working selection */
+    selectFromMask: (id: string, mode: CombineMode) => void;
+    /** sets a library mask as the active layer's mask */
+    applyMaskToLayer: (id: string) => void;
+
+    // --- image / canvas size ---
+    resizeImage: (width: number, height: number, method: ResampleMethod) => void;
+    resizeCanvas: (width: number, height: number, anchor: Anchor, fill: [number, number, number, number]) => void;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -140,6 +166,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [lastSelection, setLastSelection] = useState<Mask | null>(null);
     const [projectId, setProjectId] = useState<string | null>(null);
     const [projectName, setProjectName] = useState('Untitled');
+    const [masks, setMasks] = useState<SavedMask[]>([]);
 
     const configRef = useRef(config);
     configRef.current = config;
@@ -158,6 +185,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const filtersRef = useRef(filters);
     filtersRef.current = filters;
     const toastId = useRef(0);
+    const masksRef = useRef(masks);
+    masksRef.current = masks;
 
     const processed = useMemo(
         () => (originalImage && layers.length > 0 ? compositeLayers(originalImage, layers) : null),
@@ -244,6 +273,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setLayers(last.layers);
             setActiveLayerIdState(last.activeLayerId);
             setOriginalImage(last.originalImage);
+            const img = last.originalImage;
+            const sel = selectionRef.current;
+            if (sel && (!img || sel.length !== img.width * img.height)) {
+                // undoing a resize: the working selection belongs to the other size
+                setSelectionState(null);
+                setLastSelection(null);
+            }
             return h.slice(0, -1);
         });
     }, []);
@@ -661,6 +697,147 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         [separateChannels, snapshot, commitToActiveLayer, toast]
     );
 
+    // --- mask library ---
+
+    useEffect(() => {
+        let alive = true;
+        loadMasks()
+            .then(ms => {
+                if (alive) setMasks(ms);
+            })
+            .catch(() => {
+                /* private mode / no IndexedDB: the library just starts empty */
+            });
+        return () => {
+            alive = false;
+        };
+    }, []);
+
+    const persistMask = useCallback(
+        (m: SavedMask) => {
+            putMask(m).catch(e => toast('error', `Could not store mask: ${(e as Error).message}`));
+        },
+        [toast]
+    );
+
+    const saveMask = useCallback(
+        (mask: Mask, width: number, height: number, name?: string) => {
+            const ms = masksRef.current;
+            let n = ms.length + 1;
+            while (ms.some(m => m.name === `Mask ${n}`)) n++;
+            const m: SavedMask = {
+                id: newMaskId(),
+                name: name?.trim() || `Mask ${n}`,
+                width,
+                height,
+                createdAt: Date.now(),
+                mask: mask.slice(),
+                thumb: maskThumbnail(mask, width, height),
+            };
+            setMasks([...ms, m]);
+            persistMask(m);
+            return m.id;
+        },
+        [persistMask]
+    );
+
+    const renameMask = useCallback(
+        (id: string, name: string) => {
+            const m = masksRef.current.find(x => x.id === id);
+            if (!m || !name.trim()) return;
+            const next = { ...m, name: name.trim() };
+            setMasks(masksRef.current.map(x => (x.id === id ? next : x)));
+            persistMask(next);
+        },
+        [persistMask]
+    );
+
+    const deleteMask = useCallback(
+        (id: string) => {
+            setMasks(masksRef.current.filter(x => x.id !== id));
+            removeMask(id).catch(() => {});
+        },
+        []
+    );
+
+    const maskAtImageSize = useCallback((id: string): Mask | null => {
+        const m = masksRef.current.find(x => x.id === id);
+        const img = originalRef.current;
+        if (!m || !img) return null;
+        return resampleMask(m.mask, m.width, m.height, img.width, img.height, 'smooth');
+    }, []);
+
+    const selectFromMask = useCallback(
+        (id: string, mode: CombineMode) => {
+            const mask = maskAtImageSize(id);
+            if (!mask) return;
+            setSelection(combine(selectionRef.current, mask, mode));
+        },
+        [maskAtImageSize, setSelection]
+    );
+
+    const applyMaskToLayer = useCallback(
+        (id: string) => {
+            const mask = maskAtImageSize(id);
+            const layer = layersRef.current.find(l => l.id === activeIdRef.current);
+            if (!mask || !layer) return;
+            updateLayer(layer.id, { mask, thumb: imageDataToThumbnail(layer.result, mask) });
+        },
+        [maskAtImageSize, updateLayer]
+    );
+
+    // --- image / canvas size ---
+
+    /** applies the same geometric change to the source, every layer and the selection */
+    const transformDocument = useCallback(
+        (img: (i: ImageData) => ImageData, mask: (m: Mask, w: number, h: number) => Mask, summary: string) => {
+            const source = originalRef.current;
+            if (!source || glicEngine.isBusy) return;
+            snapshot();
+            const next = img(source);
+            const ls = layersRef.current;
+            const hadStreams = ls.some(l => l.file);
+            setLayers(
+                ls.map(l => {
+                    const result = img(l.result);
+                    const m = l.mask ? mask(l.mask, l.result.width, l.result.height) : null;
+                    // a .glic stream describes the old pixel grid; it can no longer be saved as-is
+                    return { ...l, result, mask: m, file: null, thumb: imageDataToThumbnail(result, m) };
+                })
+            );
+            setOriginalImage(next);
+            const sel = selectionRef.current;
+            setSelectionState(sel ? mask(sel, source.width, source.height) : null);
+            setLastSelection(null);
+            setLastSegments(null);
+            toast(
+                'success',
+                `${summary}: ${next.width}×${next.height}${hadStreams ? ' - re-encode to save .glic again' : ''}`
+            );
+        },
+        [snapshot, toast]
+    );
+
+    const resizeImage = useCallback(
+        (width: number, height: number, method: ResampleMethod) =>
+            transformDocument(
+                i => resampleImage(i, width, height, method),
+                (m, w, h) => resampleMask(m, w, h, width, height, method),
+                'Image resized'
+            ),
+        [transformDocument]
+    );
+
+    const resizeCanvas = useCallback(
+        (width: number, height: number, anchor: Anchor, fill: [number, number, number, number]) =>
+            transformDocument(
+                i => resizeCanvasImage(i, width, height, anchor, fill),
+                (m, w, h) => resizeCanvasMask(m, w, h, width, height, anchor),
+                'Canvas resized'
+            ),
+        [transformDocument]
+    );
+
     const value = useMemo<AppState>(
         () => ({
             config,
@@ -709,6 +886,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             undo,
             cancel,
             importGlic,
+            masks,
+            saveMask,
+            renameMask,
+            deleteMask,
+            maskAtImageSize,
+            selectFromMask,
+            applyMaskToLayer,
+            resizeImage,
+            resizeCanvas,
         }),
         [
             config,
@@ -754,6 +940,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             undo,
             cancel,
             importGlic,
+            masks,
+            saveMask,
+            renameMask,
+            deleteMask,
+            maskAtImageSize,
+            selectFromMask,
+            applyMaskToLayer,
+            resizeImage,
+            resizeCanvas,
         ]
     );
 
