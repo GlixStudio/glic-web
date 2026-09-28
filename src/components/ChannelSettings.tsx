@@ -3,7 +3,7 @@ import { useApp } from '../core/AppContext';
 import { Slider } from './controls/Slider';
 import { Select } from './controls/Select';
 import { predict_name, MAX_PRED } from '../core/Predictions';
-import { WAVELETNO, getWaveletDisplayName } from '../core/Wavelets';
+import { WAVELET_IDS, getWaveletDisplayName } from '../core/Wavelets';
 import { HELP } from '../core/help';
 import { Layers, Image as ImageIcon, Settings, Download } from 'lucide-react';
 
@@ -19,7 +19,7 @@ const PREDICTION_OPTIONS = [
 
 const WAVELET_OPTIONS = [
     { label: getWaveletDisplayName(0), value: 0 },
-    ...Array.from({ length: WAVELETNO - 1 }, (_, i) => ({ label: getWaveletDisplayName(i + 1), value: i + 1 })),
+    ...WAVELET_IDS.map(id => ({ label: getWaveletDisplayName(id), value: id })),
     { label: getWaveletDisplayName(-1), value: -1 },
 ];
 

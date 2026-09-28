@@ -3,7 +3,7 @@ import { useApp } from '../core/AppContext';
 import { CodecConfig } from '../core/Codec';
 import { getChannelNames } from '../core/ColorSpaces';
 import { predict_name, MAX_PRED } from '../core/Predictions';
-import { WAVELETNO, getWaveletDisplayName } from '../core/Wavelets';
+import { WAVELET_IDS, getWaveletDisplayName } from '../core/Wavelets';
 import { Layers, Image as ImageIcon, Settings, Download, Copy } from 'lucide-react';
 import { HELP, type HelpEntry } from '../core/help';
 import { MaybeTooltip } from './controls/Tooltip';
@@ -25,7 +25,7 @@ const PREDICTION_OPTIONS = [
 
 const WAVELET_OPTIONS = [
     { label: getWaveletDisplayName(0), value: 0 },
-    ...Array.from({ length: WAVELETNO - 1 }, (_, i) => ({ label: getWaveletDisplayName(i + 1), value: i + 1 })),
+    ...WAVELET_IDS.map(id => ({ label: getWaveletDisplayName(id), value: id })),
     { label: 'Random', value: -1 },
 ];
 
