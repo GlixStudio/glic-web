@@ -13,6 +13,7 @@ GLIC Web is a web-based vibe coded port of the **GLIC** (GLitch Image Codec) ima
 - Parallel encoding across three worker threads with live progress and cancel
 - Glitch layer stack: each encode lands on a layer with its own mask, opacity, and blend mode (Normal/Multiply/Screen/Overlay/Darken/Lighten/Difference/Add), all applied non-destructively at composite time — retune a glitch after encoding without re-running the codec
 - Photoshop-style selection tools — rect/ellipse marquee, lasso, magic wand, mask brush, with add/subtract/intersect modes, feather, invert, and mask export — so encoding glitches only the selected region (soft-mask composited at full resolution, print-safe)
+- Object-aware magic wand: click an object (or drag along it) and an on-device MediaPipe model selects its outline; Shift/Alt add or subtract objects. The 6 MB model and 12 MB runtime download once on first use and run in a worker - images never leave the browser
 - Mask import dialog: choose what counts as selected (brightness, transparency, a picked color with tolerance, a single channel, saturation, with levels and hard edge), then fit, scale, rotate, flip, move or repeat the mask over the canvas
 - Masks library in the right-hand dock: saved and imported masks persist in the browser across images and projects; select, add, subtract, intersect, apply to a layer, or re-place them
 - Channel mixer: in separate-channels mode all three channels sit side by side on one page, labeled by the active colorspace (H·W·B, Y·Cb·Cr, …)

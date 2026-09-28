@@ -14,7 +14,7 @@ const SHORTCUTS: [string, string][] = [
     ['V', 'Move / pan tool'],
     ['M', 'Rect marquee (again: ellipse)'],
     ['L', 'Lasso'],
-    ['W', 'Magic wand'],
+    ['W', 'Magic wand (again: color / object mode)'],
     ['B', 'Mask brush (Alt erases)'],
     ['[ / ]', 'Brush size'],
     ['A', 'Select all'],
@@ -72,6 +72,10 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                                 <li>Glitch layers with masks, opacity, and blend modes - non-destructive</li>
                                 <li>Projects saved in your browser (File → Save / Open), memory-bounded layers</li>
                                 <li>Selection tools: marquees, lasso, wand, brush, feather; add, subtract and intersect</li>
+                                <li>
+                                    Object-aware magic wand (W twice): click a thing to select its outline, drag along it to
+                                    guide - runs on-device, your image never leaves the browser
+                                </li>
                                 <li>
                                     Mask import: choose what counts as selected (brightness, transparency, a picked color, a
                                     channel), then size, rotate, flip, move or repeat it over the canvas
