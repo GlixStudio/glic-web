@@ -7,13 +7,10 @@ import { Tooltip } from './controls/Tooltip';
 import {
     Eye,
     EyeOff,
-    Layers,
-    ChevronUp,
     ArrowUp,
     ArrowDown,
     Copy,
     Trash2,
-    Combine,
     Scan,
 } from 'lucide-react';
 
@@ -151,18 +148,17 @@ const LayerRow: React.FC<LayerRowProps> = ({ id, name, visible, hasMask, thumb, 
     );
 };
 
+/** Layers tab of the right-hand dock. */
 export const LayersPanel: React.FC = () => {
     const {
         layers,
         activeLayerId,
         updateLayer,
-        flatten,
         selection,
         setSelection,
         setLayerMaskFromSelection,
         toast,
     } = useApp();
-    const [collapsed, setCollapsed] = useState(false);
     const active = layers.find(l => l.id === activeLayerId) ?? null;
 
     // opacity: live local value, committed debounced so big composites don't lag the drag
@@ -179,51 +175,17 @@ export const LayersPanel: React.FC = () => {
         }
     };
 
-    if (layers.length === 0) return null;
-
-    if (collapsed) {
+    if (layers.length === 0) {
         return (
-            <button
-                onClick={() => setCollapsed(false)}
-                onPointerDown={e => e.stopPropagation()}
-                onPointerUp={e => e.stopPropagation()}
-                className="absolute right-4 top-16 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-cream-2 border border-ink rounded-lg backdrop-blur-sm text-xs text-ink hover:bg-white transition-colors"
-                title="Show layers"
-            >
-                <Layers className="w-3.5 h-3.5" /> Layers · {layers.length}
-            </button>
+            <p className="p-3 text-[11px] text-ink-2 leading-relaxed">
+                No layers yet. Press <kbd className="px-1 border border-ink rounded bg-cream-2 font-mono">E</kbd> to encode -
+                each encode lands on a layer you can mask, fade and blend.
+            </p>
         );
     }
 
     return (
-        <div
-            data-tour="layers"
-            className="absolute right-4 top-16 z-10 w-60 bg-cream border border-ink rounded-lg backdrop-blur-sm flex flex-col max-h-[70%]"
-            onPointerDown={e => e.stopPropagation()}
-            onPointerUp={e => e.stopPropagation()}
-        >
-            <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-line">
-                <Tooltip help={HELP.layersPanel}>
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-2 cursor-help">
-                    <Layers className="w-3 h-3" /> Layers
-                </span>
-                </Tooltip>
-                <div className="flex items-center gap-0.5">
-                    <Tooltip help={HELP.flatten}>
-                    <button onClick={flatten} title="Flatten" className="p-1 text-ink-2 hover:text-ink transition-colors">
-                        <Combine className="w-3.5 h-3.5" />
-                    </button>
-                    </Tooltip>
-                    <button
-                        onClick={() => setCollapsed(true)}
-                        className="p-1 text-ink-2 hover:text-ink transition-colors"
-                        title="Collapse"
-                    >
-                        <ChevronUp className="w-3.5 h-3.5" />
-                    </button>
-                </div>
-            </div>
-
+        <>
             {/* stack, top layer first */}
             <div className="flex-1 overflow-y-auto custom-scrollbar p-1.5 space-y-0.5">
                 {[...layers].reverse().map((layer, i) => (
@@ -316,6 +278,6 @@ export const LayersPanel: React.FC = () => {
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 };

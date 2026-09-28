@@ -27,7 +27,7 @@ import { SelectionToolbar } from './SelectionToolbar';
 import { VIEW_EVENT, type ViewCommand } from '../core/viewBus';
 import { HELP } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
-import { LayersPanel } from './LayersPanel';
+import { Dock } from './Dock';
 import { Upload, RefreshCw, Maximize, Grid3x3, Eye, ZoomIn, ZoomOut } from 'lucide-react';
 
 const isEditableTarget = (e: KeyboardEvent) =>
@@ -608,7 +608,7 @@ export const CanvasViewer: React.FC = () => {
                         onExportMask={exportMask}
                     />
 
-                    <LayersPanel />
+                    <Dock />
 
                     {/* toolbar */}
                     <div
