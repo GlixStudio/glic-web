@@ -3,6 +3,7 @@ import { useApp } from '../core/AppContext';
 import { sendView, type ViewCommand } from '../core/viewBus';
 import { fileToImageData } from '../core/imageio';
 import { ProjectsModal } from './ProjectsModal';
+import { ExportModal } from './ExportModal';
 import { ImageSizeModal, CanvasSizeModal } from './SizeModals';
 
 // Pattrn-style menu bar: File (project lifecycle, import/export), Image
@@ -91,7 +92,7 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
     } = useApp();
 
     const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
-    const [dialog, setDialog] = useState<'image-size' | 'canvas-size' | null>(null);
+    const [dialog, setDialog] = useState<'export' | 'image-size' | 'canvas-size' | null>(null);
     const [showProjects, setShowProjects] = useState(false);
     const [showSaveAs, setShowSaveAs] = useState(false);
     const [saveAsName, setSaveAsName] = useState('');
@@ -164,7 +165,8 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         { label: 'Import image…', onClick: pickImage },
         { label: 'Import .glic…', hint: 'I', onClick: pickGlic },
         'sep',
-        { label: 'Export PNG', hint: 'S', disabled: !processed, onClick: () => void savePng() },
+        { label: 'Export…', disabled: !originalImage, onClick: () => setDialog('export') },
+        { label: 'Quick export PNG', hint: 'S', disabled: !processed, onClick: () => void savePng() },
         { label: 'Export .glic', hint: 'G', disabled: !encodedFile, onClick: saveGlic },
     ];
 
@@ -225,6 +227,7 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
             />
 
             <ProjectsModal open={showProjects} onClose={() => setShowProjects(false)} />
+            {dialog === 'export' && originalImage && <ExportModal onClose={() => setDialog(null)} />}
             {dialog === 'image-size' && originalImage && <ImageSizeModal onClose={() => setDialog(null)} />}
             {dialog === 'canvas-size' && originalImage && <CanvasSizeModal onClose={() => setDialog(null)} />}
 

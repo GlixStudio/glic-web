@@ -185,6 +185,10 @@ export const HELP = {
     resample: { title: 'Resampling', body: 'Smooth averages pixels when shrinking and blends them when enlarging - best for photos. Crisp pixels copies the nearest pixel, keeping glitch blocks razor sharp - best for pixel art, tiles and laser engraving.' },
     snapTiles: { title: 'Trim to tiles', body: 'Crops the canvas down to the nearest multiple of the tile size, so tilesets and spritesheets use every pixel with no leftover strip.' },
     canvasAnchor: { title: 'Anchor', body: 'Where the existing image sits on the new canvas. The center keeps it centered; a corner grows or crops away from that corner.' },
+    exportDpi: { title: 'DPI', body: 'Print resolution written into the file. It does not change pixels - it tells print shops and laser software how large to print. 300 is standard for paper and fabric.' },
+    exportScale: { title: 'Scale', body: 'Enlarges the export by a whole factor. With crisp pixels the glitch blocks stay hard-edged at print size instead of going blurry.' },
+    exportCrop: { title: 'Crop to selection', body: 'Exports only the bounding box of the current selection.' },
+    exportAlpha: { title: 'Selection as transparency', body: 'Makes everything outside the selection transparent - for stickers, cut files and overlays. PNG and WebP only.' },
 
     // --- viewer ---
     zoomControls: { title: 'Zoom', body: 'Mouse wheel zooms too. F toggles between fit and 100%; drag to pan while zoomed.', shortcut: 'F' },
