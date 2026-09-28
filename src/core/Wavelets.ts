@@ -14,6 +14,14 @@
 // the original's tr[x][y] indexing. All block sizes are powers of two.
 
 import { WAVELET_FILTERS, type WaveletFilterBank } from './waveletCoefficients';
+import { EXTRA_WAVELET_FILTERS } from './extraWavelets';
+
+/** Every wavelet the engine knows: the 67 JWave originals plus glic-web's own (68+). */
+export const WAVELET_BANKS: Record<number, WaveletFilterBank> = { ...WAVELET_FILTERS, ...EXTRA_WAVELET_FILTERS };
+/** All valid wavelet ids, ascending (originals first, then the ~b- additions). */
+export const WAVELET_IDS: number[] = Object.keys(WAVELET_BANKS)
+    .map(Number)
+    .sort((a, b) => a - b);
 
 export const TRANSTYPE_RANDOM = -1;
 export const TRANSTYPE_FWT = 0;
@@ -22,10 +30,12 @@ export const TRANSTYPENO = 2;
 
 export const WAVELET_RANDOM = -1;
 export const WAVELET_NONE = 0;
-export const WAVELETNO = 68; // valid wavelet ids are 1..67
+// Original id range: 1..67. RANDOM still resolves inside it so random presets
+// behave like desktop GLIC; the ~b- wavelets (68+) are only used when chosen.
+export const WAVELETNO = 68;
 
 export const isValidWaveletId = (id: number): boolean =>
-    Number.isInteger(id) && id >= 1 && id < WAVELETNO;
+    Number.isInteger(id) && id >= 1 && WAVELET_BANKS[id] !== undefined;
 
 /** Original createWavelet(): any unknown id resolves to a random valid wavelet. */
 export const resolveWaveletId = (id: number, rng: () => number = Math.random): number =>
@@ -38,7 +48,7 @@ export const resolveTransType = (type: number, rng: () => number = Math.random):
 export const getWaveletName = (id: number): string => {
     if (id === WAVELET_RANDOM) return 'Random';
     if (id === WAVELET_NONE) return 'None';
-    const bank = WAVELET_FILTERS[id];
+    const bank = WAVELET_BANKS[id];
     return bank ? bank.name : `Unknown (${id})`;
 };
 
@@ -149,7 +159,7 @@ export class WaveletTransform {
         }
         this.type = type === TRANSTYPE_WPT ? TRANSTYPE_WPT : TRANSTYPE_FWT;
         this.waveletId = waveletId;
-        this.bank = WAVELET_FILTERS[waveletId];
+        this.bank = WAVELET_BANKS[waveletId];
     }
 
     getName(): string {

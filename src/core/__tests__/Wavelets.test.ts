@@ -41,7 +41,8 @@ describe('wavelet filter bank', () => {
             expect(isValidWaveletId(id)).toBe(true);
         }
         expect(isValidWaveletId(0)).toBe(false);
-        expect(isValidWaveletId(68)).toBe(false);
+        expect(isValidWaveletId(-1)).toBe(false);
+        expect(isValidWaveletId(200)).toBe(false);
     });
 
     it('spot-checks exact JWave coefficient values', () => {
