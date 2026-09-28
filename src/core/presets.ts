@@ -13,6 +13,7 @@
 
 import presetsData from './presets.json';
 import { CodecConfig } from './Codec';
+import { EXTRA_PRESETS, applyExtraPreset } from './extraPresets';
 
 type RawPreset = Record<string, number | number[]>;
 
@@ -21,7 +22,10 @@ export interface PresetApplication {
     separateChannels: boolean;
 }
 
-export const BUILTIN_PRESET_NAMES: string[] = Object.keys(presetsData).sort();
+export const BUILTIN_PRESET_NAMES: string[] = [
+    ...Object.keys(presetsData).sort(),
+    ...EXTRA_PRESETS.map(e => e.name),
+];
 
 const num = (p: RawPreset, key: string, def: number): number => {
     const v = p[key];
@@ -43,6 +47,8 @@ const waveletFromIndex = (idx: number): number => {
 };
 
 export const applyBuiltinPreset = (name: string): PresetApplication | null => {
+    const extra = applyExtraPreset(name);
+    if (extra) return extra;
     const p = (presetsData as Record<string, RawPreset>)[name];
     if (!p) return null;
 
