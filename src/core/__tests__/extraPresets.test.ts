@@ -14,8 +14,19 @@ describe('~b- presets', () => {
             const app = applyBuiltinPreset(p.name);
             expect(app).not.toBeNull();
             expect(app!.separateChannels).toBe(p.separateChannels);
-            for (const id of app!.config.transform_method) expect(isValidWaveletId(id)).toBe(true);
+            // 0 = no transform on that channel (e.g. a channel left untouched on purpose)
+            for (const id of app!.config.transform_method) expect(id === 0 || isValidWaveletId(id), p.name).toBe(true);
         }
+    });
+
+    it('art-science presets carry a note, and never use RANDOM (they must re-perform exactly)', () => {
+        for (const p of EXTRA_PRESETS.filter(e => e.note)) {
+            const c = applyBuiltinPreset(p.name)!.config;
+            expect(c.transform_method.every(v => v >= 0), p.name).toBe(true);
+            expect(c.transform_type.every(v => v >= 0), p.name).toBe(true);
+            expect(c.prediction_method.every(v => v !== -3), p.name).toBe(true);
+        }
+        expect(EXTRA_PRESETS.filter(e => e.note).length).toBeGreaterThanOrEqual(20);
     });
 
     it('each one uses at least one ~b- wavelet', () => {
