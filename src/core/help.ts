@@ -171,17 +171,31 @@ export const HELP = {
     // --- layers ---
     layersPanel: {
         title: 'Layers',
-        body: 'Every encode lands on a layer. Each layer keeps its full glitch plus its own mask, opacity, and blend mode - all adjustable after the fact without re-encoding.',
+        body: 'Your imported image is the locked Background; every encode stacks a new layer above the active one. Each layer keeps its full glitch plus its own mask, opacity, blend mode and effects - all adjustable after the fact without re-encoding. Drag rows to reorder, Alt-click an eye to show only that layer.',
     },
     layerVisibility: { title: 'Visibility', body: 'Hide a layer to see the image without its glitch. Nothing is lost - toggle it back anytime.' },
     blendMode: {
         title: 'Blend mode',
-        body: 'How this layer’s glitch mixes with what is underneath. Normal covers; Multiply darkens; Screen lightens; Overlay adds contrast; Difference inverts where they disagree (a glitch-art favorite); Add blows out highlights.',
+        body: 'How this layer’s glitch mixes with what is underneath - the full Photoshop set. Darken/Multiply/Burn darken; Lighten/Screen/Dodge/Add brighten; Overlay and the Lights add contrast; Difference and Exclusion invert where they disagree (glitch-art favorites); Hue/Saturation/Color/Luminosity borrow just one quality of the glitch - try Color to recolor without breaking the detail.',
     },
     layerOpacity: { title: 'Opacity', body: 'Fades the layer’s glitch into the image below. 100% = full effect, 0% = invisible.' },
     setMask: { title: 'Set mask', body: 'Replaces this layer’s mask with the current working selection.' },
     editMask: { title: 'Edit mask', body: 'Loads this layer’s mask into the selection tools so you can brush, feather, or invert it - then Set mask to apply.' },
     removeMask: { title: 'Remove mask', body: 'Drops the mask so the layer’s glitch covers the whole frame.' },
+    invertMask: { title: 'Invert mask', body: 'Swaps what the mask shows and hides - glitch the background instead of the subject.' },
+    layerEffects: {
+        title: 'Layer effects',
+        body: 'Non-destructive post-processing on this layer only, applied top to bottom before it blends: adjustments (levels, hue/saturation, posterize…), filters (blur, sharpen, noise, mosaic, vignette) and glitch effects (RGB split, scanlines, pixel sort, slice shift). Toggle, reorder or tweak them anytime.',
+    },
+    adjustmentLayer: {
+        title: 'Adjustment layer',
+        body: 'A layer with no pixels of its own: its effects process everything beneath it, like a Photoshop adjustment layer. Mask it to post-process only part of the image; fade it with opacity; move it up or down to change what it affects.',
+    },
+    mergeDown: {
+        title: 'Merge down',
+        body: 'Combines the active layer with the one beneath it into a single layer of what you see (the bottom layer merges into the Background). Undoable.',
+        shortcut: '⌘E',
+    },
     flatten: {
         title: 'Flatten',
         body: 'Bakes the whole stack into a new baseline image and clears the layers - like flattening in Photoshop. Undoable. Do it when a stage is "done" and you want to build on top.',
