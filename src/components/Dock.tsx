@@ -51,7 +51,7 @@ export const Dock: React.FC = () => {
     return (
         <div
             data-tour="layers"
-            className="absolute right-4 top-16 z-10 w-64 bg-cream border border-ink rounded-lg flex flex-col max-h-[75%]"
+            className="absolute right-4 top-16 z-10 w-72 bg-cream border border-ink rounded-lg flex flex-col max-h-[75%]"
             {...stop}
         >
             <div className="flex items-center justify-between px-1.5 py-1 border-b border-line">
