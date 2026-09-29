@@ -3,7 +3,7 @@ import { type CombineMode, type SelectionTool, type ToolOptions } from '../core/
 import { Segmented } from './controls/Modal';
 import { HELP, type HelpEntry } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
-import { Hand, SquareDashed, CircleDashed, Lasso, Wand2, Paintbrush, Plus, Minus, Square, XCircle, RotateCcw, Blend, FileUp, FileDown, SquaresIntersect } from 'lucide-react';
+import { Hand, Move, SquareDashed, CircleDashed, Lasso, Wand2, Paintbrush, Plus, Minus, Square, XCircle, RotateCcw, Blend, FileUp, FileDown, SquaresIntersect } from 'lucide-react';
 
 interface ToolDef {
     id: SelectionTool;
@@ -12,12 +12,13 @@ interface ToolDef {
 }
 
 const TOOLS: ToolDef[] = [
-    { id: 'move', icon: <Hand className="w-4 h-4" />, help: HELP.toolMove },
+    { id: 'move', icon: <Move className="w-4 h-4" />, help: HELP.toolMove },
     { id: 'rect', icon: <SquareDashed className="w-4 h-4" />, help: HELP.toolRect },
     { id: 'ellipse', icon: <CircleDashed className="w-4 h-4" />, help: HELP.toolEllipse },
     { id: 'lasso', icon: <Lasso className="w-4 h-4" />, help: HELP.toolLasso },
     { id: 'wand', icon: <Wand2 className="w-4 h-4" />, help: HELP.toolWand },
     { id: 'brush', icon: <Paintbrush className="w-4 h-4" />, help: HELP.toolBrush },
+    { id: 'hand', icon: <Hand className="w-4 h-4" />, help: HELP.toolHand },
 ];
 
 const MODES: { id: CombineMode; icon: React.ReactNode; label: string }[] = [
@@ -64,7 +65,7 @@ export const SelectionToolbar: React.FC<Props> = ({
     onExportMask,
     objectStatus,
 }) => {
-    const showOptions = tool !== 'move';
+    const showOptions = tool !== 'move' && tool !== 'hand';
     const maskInputRef = useRef<HTMLInputElement>(null);
 
     return (

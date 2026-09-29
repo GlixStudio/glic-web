@@ -8,7 +8,8 @@
 export type Mask = Uint8ClampedArray;
 export type CombineMode = 'replace' | 'add' | 'subtract' | 'intersect';
 
-export type SelectionTool = 'move' | 'rect' | 'ellipse' | 'lasso' | 'wand' | 'brush';
+/** move = Photoshop's Move tool (moves / transforms the active layer); hand = pan the view */
+export type SelectionTool = 'move' | 'hand' | 'rect' | 'ellipse' | 'lasso' | 'wand' | 'brush';
 
 export interface ToolOptions {
     mode: CombineMode;

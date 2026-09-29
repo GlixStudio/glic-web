@@ -30,6 +30,8 @@ import { VIEW_EVENT, type ViewCommand } from '../core/viewBus';
 import { HELP } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
 import { Dock } from './Dock';
+import { mapPoint, type LayerTransform } from '../core/transform';
+import { maskBounds } from '../core/exportImage';
 import { Upload, RefreshCw, Maximize, Grid3x3, Eye, ZoomIn, ZoomOut } from 'lucide-react';
 
 const isEditableTarget = (e: KeyboardEvent) =>
@@ -49,6 +51,19 @@ interface Gesture {
     erase?: boolean;
 }
 
+/** a Move-tool drag on the active layer: translate anywhere, scale from a corner, rotate from the knob */
+interface XformGesture {
+    layerId: string;
+    mode: 'move' | 'scale' | 'rotate';
+    start: LayerTransform;
+    startImg: { x: number; y: number };
+    /** undo is pushed once, on the first real change */
+    pushed: boolean;
+}
+
+const HANDLE_PX = 7; // hit radius of transform handles, in screen pixels
+const KNOB_PX = 26; // rotation knob distance above the top edge, in screen pixels
+
 export const CanvasViewer: React.FC = () => {
     const {
         originalImage,
@@ -65,12 +80,16 @@ export const CanvasViewer: React.FC = () => {
         hasLastSelection,
         layers,
         activeLayerId,
+        setLayerTransform,
+        clearSelectedPixels,
     } = useApp();
+    const activeLayer = layers.find(l => l.id === activeLayerId) ?? null;
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const overlayRef = useRef<HTMLCanvasElement>(null);
     const draftRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const stageRef = useRef<HTMLDivElement>(null);
     const changeImageInputRef = useRef<HTMLInputElement>(null);
 
     const [isDragging, setIsDragging] = useState(false);
@@ -80,10 +99,12 @@ export const CanvasViewer: React.FC = () => {
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [panning, setPanning] = useState(false);
     const [spaceHeld, setSpaceHeld] = useState(false);
-    const [tool, setTool] = useState<SelectionTool>('move');
+    const [tool, setTool] = useState<SelectionTool>('hand');
     const [toolOptions, setToolOptions] = useState<ToolOptions>(DEFAULT_TOOL_OPTIONS);
     const panState = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
     const gesture = useRef<Gesture | null>(null);
+    const xform = useRef<XformGesture | null>(null);
+    const [xforming, setXforming] = useState(false);
     const hoverScreen = useRef<{ x: number; y: number } | null>(null);
     const [draftTick, setDraftTick] = useState(0); // triggers draft canvas redraws
 
@@ -163,14 +184,30 @@ export const CanvasViewer: React.FC = () => {
     }, []);
 
     const onWheel = useCallback(
-        (e: React.WheelEvent) => {
+        (e: WheelEvent) => {
             if (!displayed) return;
+            // only the stage zooms: panels floating over it (layers, masks, toolbars) scroll themselves
+            const onStage = e.target === containerRef.current || stageRef.current?.contains(e.target as Node);
+            if (!onStage) return;
             e.preventDefault();
             const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
             setZoomClamped((zoom ?? fitScale) * factor);
         },
         [displayed, zoom, fitScale, setZoomClamped]
     );
+
+    // native, non-passive: React's wheel listener is passive, so its preventDefault is ignored
+    const onWheelRef = useRef(onWheel);
+    useEffect(() => {
+        onWheelRef.current = onWheel;
+    }, [onWheel]);
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const h = (e: WheelEvent) => onWheelRef.current(e);
+        el.addEventListener('wheel', h, { passive: false });
+        return () => el.removeEventListener('wheel', h);
+    }, [hasImage]);
 
     /** screen (client) -> image pixel coordinates, via the canvas' laid-out rect */
     const screenToImage = useCallback(
@@ -184,6 +221,99 @@ export const CanvasViewer: React.FC = () => {
         },
         [imgW, imgH]
     );
+
+    // --- Move tool: the active layer's transform frame, in image space ---
+
+    // the box hugs what the layer shows (its mask's bounds), like Photoshop's content bounds
+    const activeMask = activeLayer?.mask ?? null;
+    const contentBox = useMemo(() => {
+        const b = activeMask && imgW ? maskBounds(activeMask, imgW, imgH) : null;
+        return b ?? { x: 0, y: 0, w: imgW, h: imgH };
+    }, [activeMask, imgW, imgH]);
+
+    const frame = useMemo(() => {
+        if (!activeLayer || !imgW) return null;
+        const t = activeLayer.transform;
+        const { x: bx, y: by, w: bw, h: bh } = contentBox;
+        const corners = [
+            [bx, by],
+            [bx + bw, by],
+            [bx + bw, by + bh],
+            [bx, by + bh],
+        ].map(([x, y]) => mapPoint(t, imgW, imgH, x, y));
+        const top = mapPoint(t, imgW, imgH, bx + bw / 2, by);
+        const centre = mapPoint(t, imgW, imgH, bx + bw / 2, by + bh / 2);
+        // knob sits above the top edge, along the layer's own "up"
+        const ux = top.x - centre.x;
+        const uy = top.y - centre.y;
+        const ul = Math.hypot(ux, uy) || 1;
+        const knob = { x: top.x + (ux / ul) * (KNOB_PX / scale), y: top.y + (uy / ul) * (KNOB_PX / scale) };
+        return { corners, top, knob, centre };
+    }, [activeLayer, contentBox, imgW, imgH, scale]);
+
+    // coalesce drag updates to one composite per frame
+    const pendingXform = useRef<{ id: string; t: LayerTransform; push: boolean } | null>(null);
+    const flushXform = useCallback(() => {
+        const p = pendingXform.current;
+        pendingXform.current = null;
+        if (p) setLayerTransform(p.id, p.t, p.push);
+    }, [setLayerTransform]);
+    const queueXform = (id: string, t: LayerTransform, push: boolean) => {
+        const had = pendingXform.current;
+        pendingXform.current = { id, t, push: push || !!had?.push };
+        if (!had) requestAnimationFrame(flushXform);
+    };
+
+    const startXform = (e: React.PointerEvent): boolean => {
+        if (!activeLayer || !frame) {
+            toast('info', 'The Background is locked - pick a layer to move (⌘J lifts a selection onto its own layer)');
+            return false;
+        }
+        const img = screenToImage(e.clientX, e.clientY);
+        const near = (p: { x: number; y: number }) => Math.hypot(p.x - img.x, p.y - img.y) * scale <= HANDLE_PX + 2;
+        const mode: XformGesture['mode'] = near(frame.knob) ? 'rotate' : frame.corners.some(near) ? 'scale' : 'move';
+        xform.current = { layerId: activeLayer.id, mode, start: { ...activeLayer.transform }, startImg: img, pushed: false };
+        setXforming(true);
+        return true;
+    };
+
+    const moveXform = (e: React.PointerEvent) => {
+        const g = xform.current;
+        if (!g || !frame) return;
+        const img = screenToImage(e.clientX, e.clientY);
+        const s = g.start;
+        let t: LayerTransform;
+        if (g.mode === 'move') {
+            let dx = img.x - g.startImg.x;
+            let dy = img.y - g.startImg.y;
+            if (e.shiftKey) {
+                // Photoshop: Shift constrains the move to one axis
+                if (Math.abs(dx) > Math.abs(dy)) dy = 0;
+                else dx = 0;
+            }
+            t = { ...s, x: Math.round(s.x + dx), y: Math.round(s.y + dy) };
+        } else {
+            // pivot on the box centre (layer space), fixed on screen where it was when the drag began
+            const pivot = { x: contentBox.x + contentBox.w / 2, y: contentBox.y + contentBox.h / 2 };
+            const c = mapPoint(s, imgW, imgH, pivot.x, pivot.y);
+            if (g.mode === 'scale') {
+                const d0 = Math.hypot(g.startImg.x - c.x, g.startImg.y - c.y) || 1;
+                const d1 = Math.hypot(img.x - c.x, img.y - c.y);
+                t = { ...s, scale: Math.max(0.02, Math.round(s.scale * (d1 / d0) * 1000) / 1000) };
+            } else {
+                const a0 = Math.atan2(g.startImg.y - c.y, g.startImg.x - c.x);
+                const a1 = Math.atan2(img.y - c.y, img.x - c.x);
+                let rot = s.rotation + ((a1 - a0) * 180) / Math.PI;
+                rot = e.shiftKey ? Math.round(rot / 15) * 15 : Math.round(rot * 10) / 10;
+                t = { ...s, rotation: ((rot % 360) + 540) % 360 - 180 };
+            }
+            // the model pivots on the canvas centre: shift the offset so the box centre stays put
+            const q = mapPoint(t, imgW, imgH, pivot.x, pivot.y);
+            t = { ...t, x: Math.round((t.x + c.x - q.x) * 10) / 10, y: Math.round((t.y + c.y - q.y) * 10) / 10 };
+        }
+        queueXform(g.layerId, t, !g.pushed);
+        g.pushed = true;
+    };
 
     // --- selection commands ---
 
@@ -315,7 +445,7 @@ export const CanvasViewer: React.FC = () => {
     const gestureMode = (e: React.PointerEvent): CombineMode =>
         e.shiftKey && e.altKey ? 'intersect' : e.shiftKey ? 'add' : e.altKey ? 'subtract' : toolOptions.mode;
 
-    const usingPan = (e: React.PointerEvent) => tool === 'move' || spaceHeld || e.button === 1;
+    const usingPan = (e: React.PointerEvent) => tool === 'hand' || spaceHeld || e.button === 1;
 
     const onPointerDown = (e: React.PointerEvent) => {
         if (!displayed) return;
@@ -323,6 +453,10 @@ export const CanvasViewer: React.FC = () => {
         if (usingPan(e)) {
             panState.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
             setPanning(true);
+            return;
+        }
+        if (tool === 'move') {
+            startXform(e);
             return;
         }
         const img = screenToImage(e.clientX, e.clientY);
@@ -358,6 +492,10 @@ export const CanvasViewer: React.FC = () => {
             setPan(clampPan({ x: p.panX + e.clientX - p.startX, y: p.panY + e.clientY - p.startY }, scale));
             return;
         }
+        if (xform.current) {
+            moveXform(e);
+            return;
+        }
         const g = gesture.current;
         if (!g) return;
         const prevImg = g.lastImg;
@@ -380,6 +518,11 @@ export const CanvasViewer: React.FC = () => {
         if (panState.current) {
             panState.current = null;
             setPanning(false);
+            return;
+        }
+        if (xform.current) {
+            xform.current = null;
+            setXforming(false);
             return;
         }
         const g = gesture.current;
@@ -507,6 +650,35 @@ export const CanvasViewer: React.FC = () => {
                 case 'c': setComparing(true); break;
                 case 'f': setZoomClamped(zoom === null ? 1 : null); break;
                 case 'v': setTool('move'); break;
+                case 'h': setTool('hand'); break;
+                case 'delete':
+                case 'backspace':
+                    if (selection) {
+                        e.preventDefault();
+                        clearSelectedPixels();
+                    }
+                    break;
+                case 'arrowleft':
+                case 'arrowright':
+                case 'arrowup':
+                case 'arrowdown':
+                    // Move tool: nudge the active layer 1 px (Shift: 10 px)
+                    if (tool === 'move' && activeLayer) {
+                        e.preventDefault();
+                        const step = e.shiftKey ? 10 : 1;
+                        const k = e.key.toLowerCase();
+                        const t = activeLayer.transform;
+                        setLayerTransform(
+                            activeLayer.id,
+                            {
+                                ...t,
+                                x: t.x + (k === 'arrowleft' ? -step : k === 'arrowright' ? step : 0),
+                                y: t.y + (k === 'arrowup' ? -step : k === 'arrowdown' ? step : 0),
+                            },
+                            !e.repeat
+                        );
+                    }
+                    break;
                 case 'm': setTool(t => (t === 'rect' ? 'ellipse' : 'rect')); break;
                 case 'l': setTool('lasso'); break;
                 case 'w':
@@ -533,7 +705,7 @@ export const CanvasViewer: React.FC = () => {
             window.removeEventListener('keydown', down);
             window.removeEventListener('keyup', up);
         };
-    }, [zoom, setZoomClamped, displayed, selectAll, invertSelection, clearSelection, tool]);
+    }, [zoom, setZoomClamped, displayed, selectAll, invertSelection, clearSelection, tool, selection, clearSelectedPixels, activeLayer, setLayerTransform]);
 
     const handleFile = useCallback(
         async (file: File) => {
@@ -563,9 +735,15 @@ export const CanvasViewer: React.FC = () => {
     };
 
     const showFilters = !comparing && processed && !showSegmentation;
-    const toolActive = tool !== 'move' && !spaceHeld;
+    const toolActive = tool !== 'hand' && tool !== 'move' && !spaceHeld;
     const cursor = panning
         ? 'grabbing'
+        : tool === 'move' && !spaceHeld
+          ? xforming
+              ? xform.current?.mode === 'move'
+                  ? 'move'
+                  : 'grabbing'
+              : 'move'
         : objectStatus && tool === 'wand'
           ? 'progress'
           : toolActive
@@ -622,7 +800,6 @@ export const CanvasViewer: React.FC = () => {
                 <div
                     ref={containerRef}
                     className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
-                    onWheel={onWheel}
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
                     onPointerUp={onPointerUp}
@@ -630,6 +807,7 @@ export const CanvasViewer: React.FC = () => {
                 >
                     {/* image + selection overlay share one transformed wrapper */}
                     <div
+                        ref={stageRef}
                         className="relative flex-shrink-0"
                         style={{
                             width: `${imgW * scale}px`,
@@ -657,6 +835,53 @@ export const CanvasViewer: React.FC = () => {
                             className="absolute inset-0 w-full h-full pointer-events-none"
                             style={{ imageRendering: 'pixelated' }}
                         />
+                        {/* Move tool: the active layer's transform box (image-space coordinates) */}
+                        {tool === 'move' && frame && !comparing && (
+                            <svg
+                                className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
+                                viewBox={`0 0 ${imgW} ${imgH}`}
+                                preserveAspectRatio="none"
+                            >
+                                <polygon
+                                    points={frame.corners.map(p => `${p.x},${p.y}`).join(' ')}
+                                    fill="none"
+                                    stroke="#f59e0b"
+                                    strokeWidth={1.5}
+                                    vectorEffect="non-scaling-stroke"
+                                />
+                                <line
+                                    x1={frame.top.x}
+                                    y1={frame.top.y}
+                                    x2={frame.knob.x}
+                                    y2={frame.knob.y}
+                                    stroke="#f59e0b"
+                                    strokeWidth={1.5}
+                                    vectorEffect="non-scaling-stroke"
+                                />
+                                {frame.corners.map((p, i) => (
+                                    <rect
+                                        key={i}
+                                        x={p.x - HANDLE_PX / 2 / scale}
+                                        y={p.y - HANDLE_PX / 2 / scale}
+                                        width={HANDLE_PX / scale}
+                                        height={HANDLE_PX / scale}
+                                        fill="#fff"
+                                        stroke="#16150f"
+                                        strokeWidth={1}
+                                        vectorEffect="non-scaling-stroke"
+                                    />
+                                ))}
+                                <circle
+                                    cx={frame.knob.x}
+                                    cy={frame.knob.y}
+                                    r={HANDLE_PX / 1.6 / scale}
+                                    fill="#f59e0b"
+                                    stroke="#16150f"
+                                    strokeWidth={1}
+                                    vectorEffect="non-scaling-stroke"
+                                />
+                            </svg>
+                        )}
                     </div>
 
                     {/* screen-space live gesture preview */}

@@ -123,7 +123,8 @@ export const HELP = {
     },
 
     // --- selection tools ---
-    toolMove: { title: 'Move / pan', body: 'Drag to pan when zoomed in. Hold Space for a temporary pan while any other tool is active.', shortcut: 'V' },
+    toolMove: { title: 'Move', body: 'Moves and transforms the active layer, like Photoshop: drag anywhere to move (Shift locks an axis), drag a corner to scale, drag the round knob to rotate (Shift snaps to 15°). Arrow keys nudge 1 px, Shift+arrow 10 px. Nothing is resampled for good - reset it anytime in the layer’s properties.', shortcut: 'V' },
+    toolHand: { title: 'Hand', body: 'Drag to pan when zoomed in. Hold Space for a temporary pan while any other tool is active.', shortcut: 'H' },
     toolRect: { title: 'Rectangular marquee', body: 'Drag a rectangle to select. Only the selection gets glitched on the next encode. Plain click deselects; Shift adds, Alt subtracts.', shortcut: 'M' },
     toolEllipse: { title: 'Elliptical marquee', body: 'Drag an ellipse to select. Press M again to switch back to the rectangle.', shortcut: 'M M' },
     toolLasso: { title: 'Lasso', body: 'Draw a freehand outline; it closes into a selection when you release.', shortcut: 'L' },
@@ -186,6 +187,7 @@ export const HELP = {
     setMask: { title: 'Set mask', body: 'Replaces this layer’s mask with the current working selection.' },
     editMask: { title: 'Edit mask', body: 'Loads this layer’s mask into the selection tools so you can brush, feather, or invert it - then Set mask to apply.' },
     removeMask: { title: 'Remove mask', body: 'Drops the mask so the layer’s glitch covers the whole frame.' },
+    layerTransform: { title: 'Transform', body: 'Where the layer sits: offset, scale and rotation around the canvas centre, plus flips. Non-destructive - the original pixels are kept, so Reset always brings them back. The Move tool (V) edits the same values on the canvas.' },
     invertMask: { title: 'Invert mask', body: 'Swaps what the mask shows and hides - glitch the background instead of the subject.' },
     layerEffects: {
         title: 'Layer effects',
