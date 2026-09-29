@@ -101,7 +101,7 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                                 <li>File → Export: PNG, JPEG or WebP, 1-8× upscaling, print DPI, crop to selection, cut-outs, ZIP of all layers</li>
                                 <li>16 color spaces, 18 block predictors, quad-tree segmentation</li>
                                 <li>.glic files compatible with the original desktop GLIC</li>
-                                <li>Decode with overridden settings, iterate, databend-tolerant import</li>
+                                <li>Decode with overridden settings, iterate into one layer or one layer per pass, databend-tolerant import</li>
                                 <li>
                                     Tilesets, spritesheets sorted by color, brightness or shape (PNG + JSON for pattern
                                     generators), and GIF/WebM animation
