@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resampleImage, resampleMask, resizeCanvas, resizeCanvasMask, anchorOffset } from '../resize';
+import { resampleImage, resampleMask, resizeCanvas, resizeCanvasMask, anchorOffset, orientImage, orientMask } from '../resize';
 
 const gray = (w: number, h: number, vals: number[]) => {
     const d = new Uint8ClampedArray(w * h * 4);
@@ -55,5 +55,34 @@ describe('canvas size', () => {
 
     it('masks: new area unselected', () => {
         expect(Array.from(resizeCanvasMask(new Uint8ClampedArray([255]), 1, 1, 2, 1, { x: 0, y: 0 }))).toEqual([255, 0]);
+    });
+});
+
+describe('canvas orientation', () => {
+    const coords = (w: number, h: number) => {
+        const d = new Uint8ClampedArray(w * h * 4);
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) d.set([x, y, 0, 255], (y * w + x) * 4);
+        return new ImageData(d, w, h);
+    };
+    const at = (im: ImageData, x: number, y: number) => [im.data[(y * im.width + x) * 4], im.data[(y * im.width + x) * 4 + 1]];
+
+    it('a clockwise quarter turn swaps size and moves top-left to top-right', () => {
+        const out = orientImage(coords(3, 2), { turns: 1 });
+        expect([out.width, out.height]).toEqual([2, 3]);
+        expect(at(out, 1, 0)).toEqual([0, 0]);
+        expect(at(out, 0, 0)).toEqual([0, 1]);
+    });
+
+    it('four quarter turns and double flips are identities; masks follow pixels', () => {
+        const im = coords(4, 3);
+        let r = im;
+        for (let i = 0; i < 4; i++) r = orientImage(r, { turns: 1 });
+        expect(Array.from(r.data)).toEqual(Array.from(im.data));
+        const f = orientImage(orientImage(im, { turns: 0, flipX: true }), { turns: 0, flipX: true });
+        expect(Array.from(f.data)).toEqual(Array.from(im.data));
+        const m = new Uint8ClampedArray(12);
+        m[0] = 255;
+        expect(orientMask(m, 4, 3, { turns: 1 })[2]).toBe(255); // (0,0) -> (2,0) in a 3x4 result
+        expect(orientMask(m, 4, 3, { turns: 2 })[11]).toBe(255);
     });
 });

@@ -144,3 +144,46 @@ export const resizeCanvasMask = (mask: Mask, w: number, h: number, nw: number, n
 
 /** Largest dimension the app accepts (keeps the canvas and codec buffers sane). */
 export const MAX_DIMENSION = 12000;
+
+// --- whole-canvas rotation / flips (Image > Image Rotation); exact pixel moves ---
+
+/** where destination (x, y) reads from, for a quarter-turn count or a flip */
+type Orient = { turns: 0 | 1 | 2 | 3; flipX?: boolean; flipY?: boolean };
+
+const orientSize = (w: number, h: number, o: Orient): [number, number] => (o.turns % 2 ? [h, w] : [w, h]);
+
+const orientSource = (w: number, h: number, o: Orient, x: number, y: number): number => {
+    const [nw, nh] = orientSize(w, h, o);
+    if (o.flipX) x = nw - 1 - x;
+    if (o.flipY) y = nh - 1 - y;
+    // clockwise quarter turns: invert the rotation to find the source pixel
+    let sx: number, sy: number;
+    switch (o.turns) {
+        case 1: sx = y; sy = h - 1 - x; break;
+        case 2: sx = w - 1 - x; sy = h - 1 - y; break;
+        case 3: sx = w - 1 - y; sy = x; break;
+        default: sx = x; sy = y;
+    }
+    return sy * w + sx;
+};
+
+export const orientImage = (img: ImageData, o: Orient): ImageData => {
+    const [nw, nh] = orientSize(img.width, img.height, o);
+    const out = new ImageData(nw, nh);
+    for (let y = 0; y < nh; y++) {
+        for (let x = 0; x < nw; x++) {
+            const s = orientSource(img.width, img.height, o, x, y) * 4;
+            out.data.set(img.data.subarray(s, s + 4), (y * nw + x) * 4);
+        }
+    }
+    return out;
+};
+
+export const orientMask = (mask: Mask, w: number, h: number, o: Orient): Mask => {
+    const [nw, nh] = orientSize(w, h, o);
+    const out = new Uint8ClampedArray(nw * nh);
+    for (let y = 0; y < nh; y++) for (let x = 0; x < nw; x++) out[y * nw + x] = mask[orientSource(w, h, o, x, y)];
+    return out;
+};
+
+export type { Orient };
