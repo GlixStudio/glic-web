@@ -43,7 +43,7 @@ const MenuButton: React.FC<{
 );
 
 const MenuPanel: React.FC<{ items: (Item | Separator)[]; onClose: () => void }> = ({ items, onClose }) => (
-    <div className="absolute left-0 top-full mt-1 w-56 bg-cream-2 border border-ink rounded-lg shadow-xl shadow-black/25 py-1 z-50">
+    <div className="absolute left-0 top-full mt-1 w-64 bg-cream-2 border border-ink rounded-lg shadow-xl shadow-black/25 py-1 z-50">
         {items.map((item, i) =>
             item === 'sep' ? (
                 <div key={i} className="my-1 border-t border-line" />
@@ -95,6 +95,11 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         mergeDown,
         mergeVisible,
         flatten,
+        selection,
+        layerViaCopy,
+        clearSelectedPixels,
+        setLayerTransform,
+        orientCanvas,
         toast,
     } = useApp();
 
@@ -180,20 +185,36 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
     const imageItems: (Item | Separator)[] = [
         { label: 'Image size…', disabled: !originalImage, onClick: () => setDialog('image-size') },
         { label: 'Canvas size…', disabled: !originalImage, onClick: () => setDialog('canvas-size') },
+        'sep',
+        { label: 'Rotate 90° clockwise', disabled: !originalImage, onClick: () => orientCanvas({ turns: 1 }, 'Rotated 90° clockwise') },
+        { label: 'Rotate 90° counter-clockwise', disabled: !originalImage, onClick: () => orientCanvas({ turns: 3 }, 'Rotated 90° counter-clockwise') },
+        { label: 'Rotate 180°', disabled: !originalImage, onClick: () => orientCanvas({ turns: 2 }, 'Rotated 180°') },
+        { label: 'Flip canvas horizontal', disabled: !originalImage, onClick: () => orientCanvas({ turns: 0, flipX: true }, 'Flipped horizontally') },
+        { label: 'Flip canvas vertical', disabled: !originalImage, onClick: () => orientCanvas({ turns: 0, flipY: true }, 'Flipped vertically') },
     ];
 
     const activeIdx = layers.findIndex(l => l.id === activeLayerId);
     const active = activeIdx >= 0 ? layers[activeIdx] : null;
     const layerCmds = {
-        duplicate: () => active && duplicateLayer(active.id),
+        // Photoshop: ⌘J with a selection lifts it onto a new layer, without one duplicates
+        duplicate: () => (selection ? layerViaCopy(false) : active && duplicateLayer(active.id)),
+        viaCut: () => selection && layerViaCopy(true),
         forward: () => active && moveLayer(active.id, 1),
         backward: () => active && moveLayer(active.id, -1),
         mergeDown: () => active && mergeDown(active.id),
         mergeVisible,
     };
     const layerItems: (Item | Separator)[] = [
-        { label: 'Duplicate layer', hint: '⌘J', disabled: !active, onClick: layerCmds.duplicate },
+        { label: 'Duplicate layer', hint: selection ? '' : '⌘J', disabled: !active, onClick: () => active && duplicateLayer(active.id) },
         { label: 'Delete layer', disabled: !active, onClick: () => active && deleteLayer(active.id) },
+        'sep',
+        { label: 'Layer via copy', hint: selection ? '⌘J' : '', disabled: !selection, onClick: () => layerViaCopy(false) },
+        { label: 'Layer via cut', hint: '⇧⌘J', disabled: !selection || !active, onClick: () => layerViaCopy(true) },
+        { label: 'Delete selected area', hint: '⌫', disabled: !selection || !active, onClick: clearSelectedPixels },
+        'sep',
+        { label: 'Flip layer horizontal', disabled: !active, onClick: () => active && setLayerTransform(active.id, { ...active.transform, flipX: !active.transform.flipX }, true) },
+        { label: 'Flip layer vertical', disabled: !active, onClick: () => active && setLayerTransform(active.id, { ...active.transform, flipY: !active.transform.flipY }, true) },
+        { label: 'Reset transform', disabled: !active, onClick: () => active && setLayerTransform(active.id, { x: 0, y: 0, scale: 1, rotation: 0, flipX: false, flipY: false }, true) },
         'sep',
         { label: 'Bring forward', hint: '⌘]', disabled: !active || activeIdx === layers.length - 1, onClick: layerCmds.forward },
         { label: 'Send backward', hint: '⌘[', disabled: !active || activeIdx === 0, onClick: layerCmds.backward },
@@ -218,7 +239,7 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
                 e.preventDefault();
                 fn();
             };
-            if (k === 'j' && !e.shiftKey) run(c.duplicate);
+            if (k === 'j') run(e.shiftKey ? c.viaCut : c.duplicate);
             else if (k === 'e') run(e.shiftKey ? c.mergeVisible : c.mergeDown);
             else if (e.key === ']') run(c.forward);
             else if (e.key === '[') run(c.backward);
