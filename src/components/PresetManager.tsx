@@ -14,6 +14,8 @@ import {
 import { Save, Trash2, Upload, Download } from 'lucide-react';
 import { downloadBlob, timestampedFilename } from '../core/imageio';
 import { HELP } from '../core/help';
+import { getPresetNote } from '../core/extraPresets';
+import { ConceptNote } from './controls/ConceptNote';
 
 export const PresetManager: React.FC = () => {
     const { config, setConfig, separateChannels, setSeparateChannels, toast } = useApp();
@@ -94,6 +96,8 @@ export const PresetManager: React.FC = () => {
         ...BUILTIN_PRESET_NAMES.map(k => ({ label: k, value: k })),
     ];
 
+    const note = getPresetNote(selected);
+
     return (
         <div className="space-y-2" data-tour="preset">
             <div className="flex gap-2 items-end">
@@ -117,6 +121,8 @@ export const PresetManager: React.FC = () => {
                     </button>
                 )}
             </div>
+
+            {note && <ConceptNote title={selected.replace(/^~b- /, '')} note={note} />}
 
             {showSave && (
                 <div className="flex gap-2">

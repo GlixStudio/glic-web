@@ -3,7 +3,9 @@ import { useApp } from '../core/AppContext';
 import { Slider } from './controls/Slider';
 import { Select } from './controls/Select';
 import { predict_name, MAX_PRED } from '../core/Predictions';
-import { WAVELET_IDS, getWaveletDisplayName } from '../core/Wavelets';
+import { WAVELET_IDS, getWaveletDisplayName, getWaveletName } from '../core/Wavelets';
+import { getWaveletNote } from '../core/extraWavelets';
+import { ConceptNote } from './controls/ConceptNote';
 import { HELP } from '../core/help';
 import { Layers, Image as ImageIcon, Settings, Download } from 'lucide-react';
 
@@ -129,6 +131,12 @@ export const ChannelSettings: React.FC = () => {
                     options={WAVELET_OPTIONS}
                     onChange={v => set((c, i) => (c.transform_method[i] = v))}
                 />
+                {getWaveletNote(config.transform_method[ch]) && (
+                    <ConceptNote
+                        title={getWaveletName(config.transform_method[ch]).replace(/^~b- /, '')}
+                        note={getWaveletNote(config.transform_method[ch])!}
+                    />
+                )}
                 <Select
                     label="Type"
                     help={HELP.transformType}

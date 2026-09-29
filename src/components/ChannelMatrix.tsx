@@ -3,7 +3,9 @@ import { useApp } from '../core/AppContext';
 import { CodecConfig } from '../core/Codec';
 import { getChannelNames } from '../core/ColorSpaces';
 import { predict_name, MAX_PRED } from '../core/Predictions';
-import { WAVELET_IDS, getWaveletDisplayName } from '../core/Wavelets';
+import { WAVELET_IDS, getWaveletDisplayName, getWaveletName } from '../core/Wavelets';
+import { getWaveletNote } from '../core/extraWavelets';
+import { ConceptNote } from './controls/ConceptNote';
 import { Layers, Image as ImageIcon, Settings, Download, Copy } from 'lucide-react';
 import { HELP, type HelpEntry } from '../core/help';
 import { MaybeTooltip } from './controls/Tooltip';
@@ -215,6 +217,21 @@ export const ChannelMatrix: React.FC = () => {
                     (c, i, v) => (c.encoding_method[i] = v)
                 )}
             </div>
+
+            {/* the ideas behind the derived wavelets in use, once each */}
+            {[...new Set(config.transform_method)]
+                .filter(id => getWaveletNote(id))
+                .map(id => (
+                    <div key={id} className="mt-3">
+                        <ConceptNote
+                            title={`${getWaveletName(id).replace(/^~b- /, '')} · ${[0, 1, 2]
+                                .filter(ch => config.transform_method[ch] === id)
+                                .map(ch => channelNames[ch])
+                                .join(' ')}`}
+                            note={getWaveletNote(id)!}
+                        />
+                    </div>
+                ))}
 
             {hasRandom && resolved && (
                 <p className="text-[10px] text-ink-2 italic mt-3 leading-relaxed">
