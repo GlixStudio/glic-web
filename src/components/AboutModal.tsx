@@ -9,6 +9,10 @@ const SHORTCUTS: [string, string][] = [
     ['S', 'Save processed image (PNG)'],
     ['G', 'Save .glic file'],
     ['I', 'Import .glic file'],
+    ['⌘J', 'Duplicate layer'],
+    ['⌘E / ⇧⌘E', 'Merge down / merge visible'],
+    ['⌘[ / ⌘]', 'Send layer backward / bring forward'],
+    ['Alt-click eye', 'Show only that layer (again: show all)'],
     ['C (hold)', 'Compare with source image'],
     ['F', 'Fit image / 100% zoom toggle'],
     ['V', 'Move / pan tool'],
@@ -69,7 +73,14 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                                     15 extra <code>~b-</code> wavelets and 14 <code>~b-</code> presets made for GLIC Web (desktop GLIC
                                     cannot decode files that use them)
                                 </li>
-                                <li>Glitch layers with masks, opacity, and blend modes - non-destructive</li>
+                                <li>
+                                    Photoshop-style layers: your image is the locked Background, each encode stacks a new
+                                    layer above the active one; masks, opacity, 20 blend modes, drag to reorder, merge
+                                </li>
+                                <li>
+                                    Non-destructive layer effects and adjustment layers: levels, hue/saturation, posterize,
+                                    blur, sharpen, noise, mosaic, vignette, RGB split, scanlines, pixel sort, slice shift
+                                </li>
                                 <li>Projects saved in your browser (File → Save / Open), memory-bounded layers</li>
                                 <li>Selection tools: marquees, lasso, wand, brush, feather; add, subtract and intersect</li>
                                 <li>
@@ -103,6 +114,10 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                                 <li>
                                     <strong className="text-ink">Image</strong> - Image size (scale everything) and Canvas size
                                     (crop or extend around an anchor)
+                                </li>
+                                <li>
+                                    <strong className="text-ink">Layer</strong> - duplicate, delete, arrange, merge down, merge
+                                    visible, flatten
                                 </li>
                                 <li>
                                     <strong className="text-ink">View</strong> - zoom, fit, segmentation view, show or hide the

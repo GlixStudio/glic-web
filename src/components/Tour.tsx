@@ -36,7 +36,7 @@ const STEPS: TourStep[] = [
     {
         target: 'encode',
         title: 'Encode',
-        body: 'Press ENCODE (or E) to run the codec. Every encode lands on a layer, so nothing is ever final.',
+        body: 'Press ENCODE (or E) to run the codec. Every encode stacks a new layer above your image - Layer 1, Layer 2, … - so nothing is ever final.',
     },
     {
         target: 'selection-tools',
@@ -46,7 +46,7 @@ const STEPS: TourStep[] = [
     {
         target: 'layers',
         title: 'Layers',
-        body: 'Each encode is a layer with its own mask, opacity, and blend mode - all adjustable after the fact without re-encoding. Stack different treatments on different regions.',
+        body: 'Your image is the Background; each encode is a layer with its own mask, opacity, blend mode and effects (fx) - all adjustable after the fact. Drag to reorder, add adjustment layers (◐) to post-process everything below.',
     },
     {
         target: 'viewer-tools',
