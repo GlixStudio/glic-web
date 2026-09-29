@@ -2,6 +2,7 @@
 
 import { filtersToCss, type ImageFilters } from './filters';
 import { layerRender, type GlitchLayer } from './layers';
+import { isIdentity, transformMask } from './transform';
 
 export const fileToImageData = (file: File): Promise<ImageData> =>
     new Promise((resolve, reject) => {
@@ -95,9 +96,15 @@ export const imageDataToThumbnail = (
 };
 
 /** a layer's thumbnail as it renders (effects included); null for adjustment layers */
-export const layerThumbnail = (layer: Pick<GlitchLayer, 'kind' | 'result' | 'effects'>, mask: Uint8ClampedArray | null): string | null => {
+export const layerThumbnail = (
+    layer: Pick<GlitchLayer, 'kind' | 'result' | 'effects' | 'transform'>,
+    mask: Uint8ClampedArray | null
+): string | null => {
     const render = layerRender(layer as GlitchLayer);
-    return render ? imageDataToThumbnail(render, mask) : null;
+    if (!render) return null;
+    // the render is already moved; show the (layer-space) mask where it lands too
+    const shown = mask && !isIdentity(layer.transform) ? transformMask(mask, render.width, render.height, layer.transform) : mask;
+    return imageDataToThumbnail(render, shown);
 };
 
 export const timestampedFilename = (prefix: string, extension: string) => {

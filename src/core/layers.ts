@@ -6,6 +6,7 @@
 import type { Mask } from './selection';
 import type { CodecConfig } from './Codec';
 import { applyEffects, effectsKey, type Effect } from './effects';
+import { IDENTITY_TRANSFORM, isIdentity, transformImage, transformKey, transformMask, type LayerTransform } from './transform';
 
 export type BlendMode =
     | 'normal'
@@ -73,6 +74,8 @@ export interface GlitchLayer {
     result: ImageData | null;
     /** non-destructive effect stack, applied before blending (top to bottom) */
     effects: Effect[];
+    /** non-destructive move / scale / rotate / flip; the mask travels with the pixels */
+    transform: LayerTransform;
     /** the .glic stream this layer's encode produced */
     file: Uint8Array | null;
     resolved: CodecConfig | null;
@@ -122,7 +125,7 @@ const newLayerId = () =>
 export const makeLayer = (
     name: string,
     result: ImageData,
-    init: Partial<Pick<GlitchLayer, 'mask' | 'file' | 'resolved' | 'thumb' | 'effects'>> = {}
+    init: Partial<Pick<GlitchLayer, 'mask' | 'file' | 'resolved' | 'thumb' | 'effects' | 'transform'>> = {}
 ): GlitchLayer => ({
     id: newLayerId(),
     kind: 'pixel',
@@ -133,6 +136,7 @@ export const makeLayer = (
     mask: init.mask ?? null,
     result,
     effects: init.effects ?? [],
+    transform: init.transform ?? { ...IDENTITY_TRANSFORM },
     file: init.file ?? null,
     resolved: init.resolved ?? null,
     thumb: init.thumb ?? null,
@@ -148,6 +152,7 @@ export const makeAdjustmentLayer = (name: string, effects: Effect[], mask: Mask 
     mask,
     result: null,
     effects,
+    transform: { ...IDENTITY_TRANSFORM },
     file: null,
     resolved: null,
     thumb: null,
@@ -159,6 +164,7 @@ export const cloneLayer = (src: GlitchLayer, name: string): GlitchLayer => ({
     id: newLayerId(),
     name,
     effects: src.effects.map(e => ({ ...e, params: { ...e.params } })),
+    transform: { ...src.transform },
 });
 
 // A pixel layer's effected render only changes when its pixels or its effect
@@ -166,15 +172,31 @@ export const cloneLayer = (src: GlitchLayer, name: string): GlitchLayer => ({
 // to other layers recomposite without re-running blurs or pixel sorts.
 const renderCache = new WeakMap<ImageData, { key: string; out: ImageData }>();
 
-/** a pixel layer's result with its effect stack applied (cached) */
+/** a pixel layer's result with its effect stack, then its transform, applied (cached) */
 export const layerRender = (layer: GlitchLayer): ImageData | null => {
     if (!layer.result) return null;
-    if (!layer.effects.some(e => e.enabled)) return layer.result;
-    const key = effectsKey(layer.effects);
+    const fx = layer.effects.some(e => e.enabled);
+    const moved = !isIdentity(layer.transform);
+    if (!fx && !moved) return layer.result;
+    const key = `${effectsKey(layer.effects)}|${moved ? transformKey(layer.transform) : ''}`;
     const hit = renderCache.get(layer.result);
     if (hit && hit.key === key) return hit.out;
-    const out = applyEffects(layer.result, layer.effects);
+    let out = fx ? applyEffects(layer.result, layer.effects) : layer.result;
+    if (moved) out = transformImage(out, layer.transform);
     renderCache.set(layer.result, { key, out });
+    return out;
+};
+
+const maskCache = new WeakMap<Mask, { key: string; out: Mask }>();
+
+/** a layer's mask in canvas space (it moves with the layer's transform); cached */
+export const layerMask = (layer: GlitchLayer, w: number, h: number): Mask | null => {
+    if (!layer.mask || isIdentity(layer.transform)) return layer.mask;
+    const key = transformKey(layer.transform);
+    const hit = maskCache.get(layer.mask);
+    if (hit && hit.key === key) return hit.out;
+    const out = transformMask(layer.mask, w, h, layer.transform);
+    maskCache.set(layer.mask, { key, out });
     return out;
 };
 
@@ -313,12 +335,16 @@ export const compositeLayers = (source: ImageData, layers: GlitchLayer[]): Image
             render = layerRender(layer);
         }
         if (!render || render.width !== w || render.height !== h) continue;
-        const mask = layer.mask && layer.mask.length === n ? layer.mask : null;
+        const lm = layerMask(layer, w, h);
+        const mask = lm && lm.length === n ? lm : null;
         const g = render.data;
         const m0 = layer.opacity / 100;
+        // a moved layer's alpha is coverage (0 = uncovered by the move); untransformed
+        // layers keep the original blend of alpha, byte-for-byte
+        const moved = !isIdentity(layer.transform);
 
-        // fast path: full-frame normal at 100%
-        if (!mask && m0 === 1 && layer.blendMode === 'normal') {
+        // fast path: untransformed full-frame normal at 100%
+        if (!mask && m0 === 1 && layer.blendMode === 'normal' && isIdentity(layer.transform)) {
             out.set(g);
             continue;
         }
@@ -326,29 +352,31 @@ export const compositeLayers = (source: ImageData, layers: GlitchLayer[]): Image
         const px = blendPixel(layer.blendMode);
         if (px) {
             for (let i = 0; i < n; i++) {
-                const m = mask ? (mask[i] / 255) * m0 : m0;
-                if (m === 0) continue;
                 const o = i * 4;
+                const m = (mask ? (mask[i] / 255) * m0 : m0) * (moved ? g[o + 3] / 255 : 1);
+                if (m === 0) continue;
                 const c = px(g[o], g[o + 1], g[o + 2], out[o], out[o + 1], out[o + 2]);
                 out[o] = out[o] + (c[0] - out[o]) * m;
                 out[o + 1] = out[o + 1] + (c[1] - out[o + 1]) * m;
                 out[o + 2] = out[o + 2] + (c[2] - out[o + 2]) * m;
-                out[o + 3] = out[o + 3] + (g[o + 3] - out[o + 3]) * m;
+                out[o + 3] = out[o + 3] + ((moved ? 255 : g[o + 3]) - out[o + 3]) * m;
             }
             continue;
         }
 
         const blend = blendChannel(layer.blendMode);
         for (let i = 0; i < n; i++) {
-            const m = mask ? (mask[i] / 255) * m0 : m0;
-            if (m === 0) continue;
             const o = i * 4;
+            const m = (mask ? (mask[i] / 255) * m0 : m0) * (moved ? g[o + 3] / 255 : 1);
+            if (m === 0) continue;
             out[o] = out[o] + (blend(g[o], out[o]) - out[o]) * m;
             out[o + 1] = out[o + 1] + (blend(g[o + 1], out[o + 1]) - out[o + 1]) * m;
             out[o + 2] = out[o + 2] + (blend(g[o + 2], out[o + 2]) - out[o + 2]) * m;
-            out[o + 3] = out[o + 3] + (g[o + 3] - out[o + 3]) * m;
+            out[o + 3] = out[o + 3] + ((moved ? 255 : g[o + 3]) - out[o + 3]) * m;
         }
     }
 
     return new ImageData(out, w, h);
 };
+
+export type { LayerTransform };

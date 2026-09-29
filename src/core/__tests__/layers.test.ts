@@ -231,3 +231,32 @@ describe('layer effects', () => {
         expect(copy.result).toBe(layer.result);
     });
 });
+
+describe('transformed layers', () => {
+    it('a moved layer uncovers what is beneath it, and its mask travels with it', () => {
+        const source = img(4, 1, [10, 10, 10, 255]);
+        const layer = makeLayer('L', img(4, 1, [200, 0, 0, 255]), { mask: new Uint8ClampedArray([255, 0, 0, 0]) });
+        layer.transform = { ...layer.transform, x: 2 };
+        const out = compositeLayers(source, [layer]);
+        expect(px(out, 0)).toEqual([10, 10, 10, 255]); // uncovered
+        expect(px(out, 2)).toEqual([200, 0, 0, 255]); // the masked pixel moved from 0 to 2
+        expect(px(out, 3)).toEqual([10, 10, 10, 255]);
+    });
+
+    it('over a transparent base, the moved-out area stays transparent', () => {
+        const base = img(2, 1, [0, 0, 0, 0]);
+        const layer = makeLayer('L', img(2, 1, [50, 60, 70, 255]));
+        layer.transform = { ...layer.transform, x: 1 };
+        const out = compositeLayers(base, [layer]);
+        expect(px(out, 0)[3]).toBe(0);
+        expect(px(out, 1)).toEqual([50, 60, 70, 255]);
+    });
+
+    it('the transformed render is cached per transform', () => {
+        const layer = makeLayer('L', img(4, 4, [1, 2, 3, 255]));
+        layer.transform = { ...layer.transform, x: 1 };
+        const a = layerRender(layer);
+        expect(layerRender({ ...layer, opacity: 20 })).toBe(a);
+        expect(layerRender({ ...layer, transform: { ...layer.transform, x: 2 } })).not.toBe(a);
+    });
+});

@@ -6,6 +6,7 @@
 import type { CodecConfig } from './Codec';
 import type { BlendMode, LayerKind } from './layers';
 import type { Effect } from './effects';
+import type { LayerTransform } from './transform';
 
 export interface StoredLayer {
     /** absent in projects saved before adjustment layers (= 'pixel') */
@@ -19,6 +20,8 @@ export interface StoredLayer {
     result: Blob | null;
     /** absent in projects saved before layer effects */
     effects?: Effect[];
+    /** absent in projects saved before layer transforms */
+    transform?: LayerTransform;
     file: Uint8Array | null;
     resolved: CodecConfig | null;
     thumb: string | null;
