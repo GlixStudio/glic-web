@@ -15,6 +15,8 @@ const looks: { label: string; tweak: (c: CodecConfig) => void }[] = [
     { label: 'q110 fwt', tweak: () => {} },
     { label: 'q40 c60 fwt', tweak: c => { c.quantization_value = [40, 40, 40]; c.transform_compress = [60, 60, 60]; } },
     { label: 'q40 wpt', tweak: c => { c.quantization_value = [40, 40, 40]; c.transform_type = [1, 1, 1]; } },
+    // where orthogonal (lawful) banks show their shape: heavy thresholding, coarse coefficients
+    { label: 'q12 c200 fwt', tweak: c => { c.quantization_value = [12, 12, 12]; c.transform_compress = [200, 200, 200]; } },
 ];
 for (const look of looks) {
     const tiles: ImageData[] = [scene];
