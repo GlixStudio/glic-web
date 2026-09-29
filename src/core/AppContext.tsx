@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { CodecConfig, cloneConfig } from './Codec';
 import { glicEngine, type ChannelProgress } from './engine';
 import type { Segment } from './Planes';
-import { combine, isEmptyMask, type CombineMode, type Mask } from './selection';
+import { combine, invertMask, isEmptyMask, type CombineMode, type Mask } from './selection';
 import { putMask, removeMask, loadMasks, maskThumbnail, newMaskId, type SavedMask } from './maskStore';
 import {
     resampleImage,
@@ -13,6 +13,7 @@ import {
     type ResampleMethod,
 } from './resize';
 import { compositeLayers, makeLayer, makeAdjustmentLayer, cloneLayer, canAddLayer, type GlitchLayer } from './layers';
+import { EFFECT_DEFS, makeEffect, type Effect, type EffectType } from './effects';
 import {
     imageDataToThumbnail,
     layerThumbnail,
@@ -67,9 +68,24 @@ interface AppState {
     /** non-structural edits: visibility, opacity, blend, name, mask, thumb */
     updateLayer: (id: string, patch: Partial<GlitchLayer>) => void;
     moveLayer: (id: string, dir: 1 | -1) => void;
+    /** drag-and-drop reorder: moves the layer to stack index `to` (0 = just above the Background) */
+    reorderLayer: (id: string, to: number) => void;
     duplicateLayer: (id: string) => void;
     deleteLayer: (id: string) => void;
     flatten: () => void;
+    /** merges a layer into the one beneath it (the bottom layer merges into the Background) */
+    mergeDown: (id: string) => void;
+    /** replaces every visible layer with one layer of what you see */
+    mergeVisible: () => void;
+    invertLayerMask: (id: string) => void;
+    /** adds an adjustment layer above the active one (the selection becomes its mask) */
+    addAdjustmentLayer: (type: EffectType) => void;
+
+    // --- per-layer effect stacks ---
+    addEffect: (layerId: string, type: EffectType) => void;
+    updateEffect: (layerId: string, effectId: string, patch: Partial<Pick<Effect, 'enabled' | 'params'>>) => void;
+    removeEffect: (layerId: string, effectId: string) => void;
+    moveEffect: (layerId: string, effectId: string, dir: 1 | -1) => void;
     /** replaces the active layer's mask from the working selection (regenerates thumb) */
     setLayerMaskFromSelection: (id: string) => void;
 
@@ -359,6 +375,153 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setActiveLayerIdState(null);
         toast('info', 'Flattened - the composite is the new baseline');
     }, [snapshot, toast]);
+
+    const reorderLayer = useCallback(
+        (id: string, to: number) => {
+            const ls = layersRef.current;
+            const i = ls.findIndex(l => l.id === id);
+            const j = Math.max(0, Math.min(ls.length - 1, to));
+            if (i < 0 || i === j) return;
+            snapshot();
+            const next = [...ls];
+            const [moved] = next.splice(i, 1);
+            next.splice(j, 0, moved);
+            setLayers(next);
+        },
+        [snapshot]
+    );
+
+    const mergeDown = useCallback(
+        (id: string) => {
+            const source = originalRef.current;
+            const ls = layersRef.current;
+            const i = ls.findIndex(l => l.id === id);
+            if (!source || i < 0) return;
+            snapshot();
+            if (i === 0) {
+                // onto the Background: bake this one layer into the source
+                setOriginalImage(compositeLayers(source, [ls[0]]));
+                setLayers(ls.slice(1));
+                setActiveLayerIdState(null);
+                return;
+            }
+            const lower = ls[i - 1];
+            const upper = ls[i];
+            // The merged pixels are what the stack shows through `upper`; limiting them
+            // to the union of both masks leaves untouched areas showing the layers below.
+            let mask: Mask | null = null;
+            if (lower.mask && upper.mask) {
+                mask = new Uint8ClampedArray(lower.mask.length);
+                for (let k = 0; k < mask.length; k++) mask[k] = Math.max(lower.mask[k], upper.mask[k]);
+            }
+            const result = compositeLayers(source, ls.slice(0, i + 1));
+            // (no .glic stream: the merged pixels are no single encode's output)
+            const merged = makeLayer(lower.name, result, { mask, thumb: imageDataToThumbnail(result, mask) });
+            const next = [...ls];
+            next.splice(i - 1, 2, merged);
+            setLayers(next);
+            setActiveLayerIdState(merged.id);
+        },
+        [snapshot]
+    );
+
+    const mergeVisible = useCallback(() => {
+        const source = originalRef.current;
+        const ls = layersRef.current;
+        if (!source || !ls.some(l => l.visible)) return;
+        snapshot();
+        const result = compositeLayers(source, ls);
+        const merged = makeLayer('Merged', result, { thumb: imageDataToThumbnail(result, null) });
+        // hidden layers stay (beneath the full-frame merge, so nothing visible changes)
+        setLayers([...ls.filter(l => !l.visible), merged]);
+        setActiveLayerIdState(merged.id);
+        toast('info', 'Merged visible layers into one');
+    }, [snapshot, toast]);
+
+    const invertLayerMask = useCallback(
+        (id: string) => {
+            const layer = layersRef.current.find(l => l.id === id);
+            if (!layer?.mask) return;
+            snapshot();
+            const mask = invertMask(layer.mask);
+            updateLayer(id, { mask, thumb: layerThumbnail(layer, mask) });
+        },
+        [snapshot, updateLayer]
+    );
+
+    const addAdjustmentLayer = useCallback(
+        (type: EffectType) => {
+            if (!originalRef.current) return;
+            const anchorId = activeIdRef.current;
+            const sel = selectionRef.current;
+            const layer = makeAdjustmentLayer(EFFECT_DEFS[type].label, [makeEffect(type)], sel ? sel.slice() : null);
+            snapshot();
+            const next = [...layersRef.current];
+            const anchor = next.findIndex(l => l.id === anchorId);
+            next.splice(anchorId === null ? 0 : anchor < 0 ? next.length : anchor + 1, 0, layer);
+            setLayers(next);
+            setActiveLayerIdState(layer.id);
+        },
+        [snapshot]
+    );
+
+    // --- effect stacks ---
+
+    /** replaces a layer's effect list and refreshes its thumbnail (which renders the effects) */
+    const setEffects = useCallback((layerId: string, fn: (fx: Effect[]) => Effect[]) => {
+        setLayers(ls =>
+            ls.map(l => {
+                if (l.id !== layerId) return l;
+                const next = { ...l, effects: fn(l.effects) };
+                return next.kind === 'pixel' ? { ...next, thumb: layerThumbnail(next, next.mask) } : next;
+            })
+        );
+    }, []);
+
+    const addEffect = useCallback(
+        (layerId: string, type: EffectType) => {
+            snapshot();
+            setEffects(layerId, fx => [...fx, makeEffect(type)]);
+        },
+        [snapshot, setEffects]
+    );
+
+    const updateEffect = useCallback(
+        (layerId: string, effectId: string, patch: Partial<Pick<Effect, 'enabled' | 'params'>>) => {
+            setEffects(layerId, fx =>
+                fx.map(e =>
+                    e.id === effectId
+                        ? { ...e, ...patch, params: patch.params ? { ...e.params, ...patch.params } : e.params }
+                        : e
+                )
+            );
+        },
+        [setEffects]
+    );
+
+    const removeEffect = useCallback(
+        (layerId: string, effectId: string) => {
+            snapshot();
+            setEffects(layerId, fx => fx.filter(e => e.id !== effectId));
+        },
+        [snapshot, setEffects]
+    );
+
+    const moveEffect = useCallback(
+        (layerId: string, effectId: string, dir: 1 | -1) => {
+            const layer = layersRef.current.find(l => l.id === layerId);
+            const i = layer ? layer.effects.findIndex(e => e.id === effectId) : -1;
+            const j = i + dir;
+            if (!layer || i < 0 || j < 0 || j >= layer.effects.length) return;
+            snapshot();
+            setEffects(layerId, fx => {
+                const next = [...fx];
+                [next[i], next[j]] = [next[j], next[i]];
+                return next;
+            });
+        },
+        [snapshot, setEffects]
+    );
 
     const setLayerMaskFromSelection = useCallback(
         (id: string) => {
@@ -872,9 +1035,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setActiveLayerId,
             updateLayer,
             moveLayer,
+            reorderLayer,
             duplicateLayer,
             deleteLayer,
             flatten,
+            mergeDown,
+            mergeVisible,
+            invertLayerMask,
+            addAdjustmentLayer,
+            addEffect,
+            updateEffect,
+            removeEffect,
+            moveEffect,
             setLayerMaskFromSelection,
             encodedFile: activeLayer?.file ?? null,
             resolved,
@@ -927,9 +1099,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setActiveLayerId,
             updateLayer,
             moveLayer,
+            reorderLayer,
             duplicateLayer,
             deleteLayer,
             flatten,
+            mergeDown,
+            mergeVisible,
+            invertLayerMask,
+            addAdjustmentLayer,
+            addEffect,
+            updateEffect,
+            removeEffect,
+            moveEffect,
             setLayerMaskFromSelection,
             activeLayer,
             resolved,
