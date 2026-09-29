@@ -13,18 +13,43 @@ export type BlendMode =
     | 'overlay'
     | 'darken'
     | 'lighten'
+    | 'colorDodge'
+    | 'colorBurn'
+    | 'hardLight'
+    | 'softLight'
+    | 'linearLight'
     | 'difference'
-    | 'add';
+    | 'exclusion'
+    | 'add'
+    | 'subtract'
+    | 'divide'
+    | 'hue'
+    | 'saturation'
+    | 'color'
+    | 'luminosity';
 
-export const BLEND_MODES: { label: string; value: BlendMode }[] = [
+/** Photoshop's menu order; `group` starts a new separated section in the picker. */
+export const BLEND_MODES: { label: string; value: BlendMode; group?: true }[] = [
     { label: 'Normal', value: 'normal' },
+    { label: 'Darken', value: 'darken', group: true },
     { label: 'Multiply', value: 'multiply' },
+    { label: 'Color Burn', value: 'colorBurn' },
+    { label: 'Lighten', value: 'lighten', group: true },
     { label: 'Screen', value: 'screen' },
-    { label: 'Overlay', value: 'overlay' },
-    { label: 'Darken', value: 'darken' },
-    { label: 'Lighten', value: 'lighten' },
-    { label: 'Difference', value: 'difference' },
-    { label: 'Add', value: 'add' },
+    { label: 'Color Dodge', value: 'colorDodge' },
+    { label: 'Linear Dodge (Add)', value: 'add' },
+    { label: 'Overlay', value: 'overlay', group: true },
+    { label: 'Soft Light', value: 'softLight' },
+    { label: 'Hard Light', value: 'hardLight' },
+    { label: 'Linear Light', value: 'linearLight' },
+    { label: 'Difference', value: 'difference', group: true },
+    { label: 'Exclusion', value: 'exclusion' },
+    { label: 'Subtract', value: 'subtract' },
+    { label: 'Divide', value: 'divide' },
+    { label: 'Hue', value: 'hue', group: true },
+    { label: 'Saturation', value: 'saturation' },
+    { label: 'Color', value: 'color' },
+    { label: 'Luminosity', value: 'luminosity' },
 ];
 
 export interface GlitchLayer {
@@ -107,16 +132,94 @@ const blendChannel = (mode: BlendMode): ((s: number, b: number) => number) => {
             return (s, b) => 255 - ((255 - s) * (255 - b)) / 255;
         case 'overlay':
             return (s, b) => (b < 128 ? (2 * s * b) / 255 : 255 - (2 * (255 - s) * (255 - b)) / 255);
+        case 'hardLight':
+            return (s, b) => (s < 128 ? (2 * s * b) / 255 : 255 - (2 * (255 - s) * (255 - b)) / 255);
+        case 'softLight':
+            // W3C compositing spec formula (what browsers and Photoshop CC use)
+            return (s, b) => {
+                const cs = s / 255;
+                const cb = b / 255;
+                if (cs <= 0.5) return 255 * (cb - (1 - 2 * cs) * cb * (1 - cb));
+                const d = cb <= 0.25 ? ((16 * cb - 12) * cb + 4) * cb : Math.sqrt(cb);
+                return 255 * (cb + (2 * cs - 1) * (d - cb));
+            };
+        case 'linearLight':
+            return (s, b) => b + 2 * s - 255;
+        case 'colorDodge':
+            return (s, b) => (b === 0 ? 0 : s === 255 ? 255 : Math.min(255, (b * 255) / (255 - s)));
+        case 'colorBurn':
+            return (s, b) => (b === 255 ? 255 : s === 0 ? 0 : 255 - Math.min(255, ((255 - b) * 255) / s));
         case 'darken':
             return (s, b) => Math.min(s, b);
         case 'lighten':
             return (s, b) => Math.max(s, b);
         case 'difference':
             return (s, b) => Math.abs(s - b);
+        case 'exclusion':
+            return (s, b) => s + b - (2 * s * b) / 255;
         case 'add':
             return (s, b) => Math.min(255, s + b);
+        case 'subtract':
+            return (s, b) => Math.max(0, b - s);
+        case 'divide':
+            return (s, b) => (s === 0 ? (b === 0 ? 0 : 255) : Math.min(255, (b * 255) / s));
         default:
             return s => s;
+    }
+};
+
+// --- non-separable modes (W3C compositing spec: Lum / SetLum / Sat / SetSat) ---
+
+const lum = (r: number, g: number, b: number) => 0.3 * r + 0.59 * g + 0.11 * b;
+
+const clipColor = (c: [number, number, number]): [number, number, number] => {
+    const l = lum(c[0], c[1], c[2]);
+    const n = Math.min(c[0], c[1], c[2]);
+    const x = Math.max(c[0], c[1], c[2]);
+    if (n < 0) for (let i = 0; i < 3; i++) c[i] = l + ((c[i] - l) * l) / (l - n);
+    if (x > 255) for (let i = 0; i < 3; i++) c[i] = l + ((c[i] - l) * (255 - l)) / (x - l);
+    return c;
+};
+
+const setLum = (r: number, g: number, b: number, l: number) => {
+    const d = l - lum(r, g, b);
+    return clipColor([r + d, g + d, b + d]);
+};
+
+const sat = (r: number, g: number, b: number) => Math.max(r, g, b) - Math.min(r, g, b);
+
+const setSat = (r: number, g: number, b: number, s: number): [number, number, number] => {
+    const c: [number, number, number] = [r, g, b];
+    const idx = [0, 1, 2].sort((i, j) => c[i] - c[j]);
+    const [lo, mid, hi] = idx;
+    const out: [number, number, number] = [0, 0, 0];
+    if (c[hi] > c[lo]) {
+        out[mid] = ((c[mid] - c[lo]) * s) / (c[hi] - c[lo]);
+        out[hi] = s;
+    }
+    return out;
+};
+
+type RGBBlend = (sr: number, sg: number, sb: number, br: number, bg: number, bb: number) => [number, number, number];
+
+const blendPixel = (mode: BlendMode): RGBBlend | null => {
+    switch (mode) {
+        case 'hue':
+            return (sr, sg, sb, br, bg, bb) => {
+                const c = setSat(sr, sg, sb, sat(br, bg, bb));
+                return setLum(c[0], c[1], c[2], lum(br, bg, bb));
+            };
+        case 'saturation':
+            return (sr, sg, sb, br, bg, bb) => {
+                const c = setSat(br, bg, bb, sat(sr, sg, sb));
+                return setLum(c[0], c[1], c[2], lum(br, bg, bb));
+            };
+        case 'color':
+            return (sr, sg, sb, br, bg, bb) => setLum(sr, sg, sb, lum(br, bg, bb));
+        case 'luminosity':
+            return (sr, sg, sb, br, bg, bb) => setLum(br, bg, bb, lum(sr, sg, sb));
+        default:
+            return null;
     }
 };
 
@@ -141,6 +244,21 @@ export const compositeLayers = (source: ImageData, layers: GlitchLayer[]): Image
         // fast path: full-frame normal at 100%
         if (!mask && m0 === 1 && layer.blendMode === 'normal') {
             out.set(g);
+            continue;
+        }
+
+        const px = blendPixel(layer.blendMode);
+        if (px) {
+            for (let i = 0; i < n; i++) {
+                const m = mask ? (mask[i] / 255) * m0 : m0;
+                if (m === 0) continue;
+                const o = i * 4;
+                const c = px(g[o], g[o + 1], g[o + 2], out[o], out[o + 1], out[o + 2]);
+                out[o] = out[o] + (c[0] - out[o]) * m;
+                out[o + 1] = out[o + 1] + (c[1] - out[o + 1]) * m;
+                out[o + 2] = out[o + 2] + (c[2] - out[o + 2]) * m;
+                out[o + 3] = out[o + 3] + (g[o + 3] - out[o + 3]) * m;
+            }
             continue;
         }
 

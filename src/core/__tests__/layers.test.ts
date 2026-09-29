@@ -20,6 +20,13 @@ describe('blend modes', () => {
         ['lighten', [10, 200, 128], [50, 50, 128], [50, 200, 128]],
         ['difference', [200, 50, 0], [50, 200, 0], [150, 150, 0]],
         ['add', [200, 100, 0], [100, 100, 0], [255, 200, 0]],
+        ['subtract', [50, 200, 0], [100, 100, 0], [50, 0, 0]],
+        ['exclusion', [255, 0, 128], [100, 100, 0], [155, 100, 128]],
+        ['divide', [255, 0, 128], [100, 0, 64], [100, 0, 128]],
+        ['colorDodge', [0, 255, 128], [100, 100, 0], [100, 255, 0]],
+        ['colorBurn', [255, 0, 128], [100, 100, 255], [100, 0, 255]],
+        ['hardLight', [64, 200, 0], [128, 128, 0], [64, 200, 0]],
+        ['linearLight', [128, 0, 255], [100, 200, 100], [101, 0, 255]],
     ];
 
     for (const [mode, layerRgb, baseRgb, expected] of cases) {
@@ -41,6 +48,45 @@ describe('blend modes', () => {
         const out = compositeLayers(source, [layer]);
         expect(px(out, 0)[0]).toBe(Math.round((2 * 128 * 64) / 255)); // 64
         expect(px(out, 1)[0]).toBe(Math.round(255 - (2 * 127 * 55) / 255)); // 200
+    });
+});
+
+describe('non-separable blend modes', () => {
+    const lum = (p: number[]) => 0.3 * p[0] + 0.59 * p[1] + 0.11 * p[2];
+
+    it('luminosity keeps the base hue, takes the layer lightness', () => {
+        const source = img(1, 1, [200, 40, 40, 255]);
+        const layer = makeLayer('L', img(1, 1, [30, 30, 30, 255]));
+        layer.blendMode = 'luminosity';
+        const out = px(compositeLayers(source, [layer]));
+        expect(Math.abs(lum(out) - 30)).toBeLessThan(1.5);
+        expect(out[0]).toBeGreaterThan(out[1]); // still red-dominant
+    });
+
+    it('color keeps the base lightness, takes the layer hue', () => {
+        const source = img(1, 1, [120, 120, 120, 255]);
+        const layer = makeLayer('L', img(1, 1, [0, 0, 255, 255]));
+        layer.blendMode = 'color';
+        const out = px(compositeLayers(source, [layer]));
+        expect(Math.abs(lum(out) - 120)).toBeLessThan(1.5);
+        expect(out[2]).toBeGreaterThan(out[0]);
+    });
+
+    it('saturation of a gray layer desaturates the base', () => {
+        const source = img(1, 1, [200, 40, 40, 255]);
+        const layer = makeLayer('L', img(1, 1, [90, 90, 90, 255]));
+        layer.blendMode = 'saturation';
+        const out = px(compositeLayers(source, [layer]));
+        expect(out[0]).toBe(out[1]);
+        expect(out[1]).toBe(out[2]);
+    });
+
+    it('softLight with mid-gray layer is identity', () => {
+        const source = img(1, 1, [30, 128, 220, 255]);
+        const layer = makeLayer('L', img(1, 1, [127.5, 127.5, 127.5, 255]));
+        layer.blendMode = 'softLight';
+        const out = px(compositeLayers(source, [layer]));
+        expect(out.slice(0, 3).map((v, i) => Math.abs(v - [30, 128, 220][i]) <= 1)).toEqual([true, true, true]);
     });
 });
 
