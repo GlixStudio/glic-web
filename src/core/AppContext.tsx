@@ -59,10 +59,11 @@ interface AppState {
     /** composite of the layer stack over the source; null while the stack is empty */
     processed: ImageData | null;
 
-    // --- glitch layer stack (bottom -> top) ---
+    // --- glitch layer stack (bottom -> top), over the source as a locked Background ---
     layers: GlitchLayer[];
+    /** null = the Background (the imported source image) is active */
     activeLayerId: string | null;
-    setActiveLayerId: (id: string) => void;
+    setActiveLayerId: (id: string | null) => void;
     /** non-structural edits: visibility, opacity, blend, name, mask, thumb */
     updateLayer: (id: string, patch: Partial<GlitchLayer>) => void;
     moveLayer: (id: string, dir: 1 | -1) => void;
@@ -111,10 +112,11 @@ interface AppState {
     /** downloads the active layer's .glic stream */
     saveGlic: () => void;
 
-    /** encode into the active layer (creates "Layer 1" on an empty stack) */
+    /** encodes what is visible up to the active layer into a NEW layer right above it */
     encodeNow: () => Promise<void>;
-    /** encode into a new layer pushed on top of the stack */
-    newLayerEncode: () => Promise<void>;
+    /** re-runs the codec into the active glitch layer, replacing its pixels */
+    reencodeLayer: () => Promise<void>;
+    /** encode passes feeding on each other, one new layer per pass */
     iterate: (times: number) => Promise<void>;
     undo: () => void;
     cancel: () => void;
@@ -287,8 +289,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // --- layer operations ---
 
-    const setActiveLayerId = useCallback((id: string) => {
-        if (layersRef.current.some(l => l.id === id)) setActiveLayerIdState(id);
+    const setActiveLayerId = useCallback((id: string | null) => {
+        if (id === null || layersRef.current.some(l => l.id === id)) setActiveLayerIdState(id);
     }, []);
 
     const updateLayer = useCallback((id: string, patch: Partial<GlitchLayer>) => {
@@ -340,7 +342,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const next = ls.filter(l => l.id !== id);
             setLayers(next);
             if (activeIdRef.current === id) {
-                setActiveLayerIdState(next[Math.min(i, next.length - 1)]?.id ?? null);
+                // like Photoshop: the layer beneath takes over, down to the Background
+                setActiveLayerIdState(next[i - 1]?.id ?? null);
             }
         },
         [snapshot]
@@ -394,116 +397,131 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return below.length ? compositeLayers(source, below) : source;
     }, []);
 
-    /** write an encode/decode result into the active layer, or create "Layer 1" */
-    const commitToActiveLayer = useCallback(
-        (result: ImageData, file: Uint8Array | null, resolvedCfg: CodecConfig | null) => {
-            snapshot();
-            const ls = layersRef.current;
-            const idx = ls.findIndex(l => l.id === activeIdRef.current);
+    /** where a new layer goes: right above the active one (index 0 = just above the Background) */
+    const insertionIndex = useCallback((anchorId: string | null) => {
+        if (anchorId === null) return 0;
+        const i = layersRef.current.findIndex(l => l.id === anchorId);
+        return i < 0 ? layersRef.current.length : i + 1;
+    }, []);
+
+    const memoryFull = useCallback(
+        (extra: GlitchLayer[] = []) => {
+            const source = originalRef.current;
+            if (!source) return true;
+            const budget = canAddLayer([...layersRef.current, ...extra], source.width, source.height);
+            if (budget.ok) return false;
+            toast('error', `Layer memory is full (${budget.usedMB} of ${budget.budgetMB} MB) - flatten or delete layers to continue`);
+            return true;
+        },
+        [toast]
+    );
+
+    const encodedLayer = useCallback(
+        (name: string, result: ImageData, file: Uint8Array | null, resolvedCfg: CodecConfig | null) => {
             const sel = selectionRef.current;
-            if (idx >= 0) {
-                const existing = ls[idx];
-                // no selection = full frame; a stale mask must not survive a re-encode
-                const mask = sel ? sel.slice() : null;
-                const next = [...ls];
-                next[idx] = {
-                    ...existing,
-                    result,
-                    file,
-                    resolved: resolvedCfg,
-                    mask,
-                    thumb: imageDataToThumbnail(result, mask),
-                };
-                setLayers(next);
-            } else {
-                const mask = sel ? sel.slice() : null;
-                const layer = makeLayer(nextLayerName(ls), result, {
-                    mask,
-                    file,
-                    resolved: resolvedCfg,
-                    thumb: imageDataToThumbnail(result, mask),
-                });
-                setLayers([...ls, layer]);
-                setActiveLayerIdState(layer.id);
-            }
+            const mask = sel ? sel.slice() : null;
+            return makeLayer(name, result, { mask, file, resolved: resolvedCfg, thumb: imageDataToThumbnail(result, mask) });
+        },
+        []
+    );
+
+    /**
+     * inserts freshly encoded layers above the anchor (re-resolved now: the stack
+     * may have changed while the codec ran) and makes the topmost one active
+     */
+    const insertLayers = useCallback(
+        (anchorId: string | null, made: GlitchLayer[]) => {
+            if (made.length === 0) return;
+            snapshot();
+            const next = [...layersRef.current];
+            next.splice(insertionIndex(anchorId), 0, ...made);
+            setLayers(next);
+            setActiveLayerIdState(made[made.length - 1].id);
             onceHint(
                 'glic_hint_encode_v1',
-                'Tip: draw a selection (M, W, or B) to glitch only part of the image - every encode lands on a layer you can re-tune'
+                'Tip: every encode stacks a new layer above the active one - draw a selection (M, W, or B) first to glitch only part of the image'
             );
         },
-        [snapshot, onceHint]
+        [snapshot, insertionIndex, onceHint]
     );
 
     const encodeNow = useCallback(async () => {
         const source = originalRef.current;
-        if (!source || glicEngine.isBusy) return;
+        if (!source || glicEngine.isBusy || memoryFull()) return;
+        const anchorId = activeIdRef.current;
         try {
-            const idx = layersRef.current.findIndex(l => l.id === activeIdRef.current);
-            const input = compositeBelow(source, idx);
+            const input = compositeBelow(source, insertionIndex(anchorId));
             const res = await runEngineEncode(input);
-            commitToActiveLayer(res.preview, res.file, res.resolvedConfig);
+            const layer = encodedLayer(nextLayerName(layersRef.current), res.preview, res.file, res.resolvedConfig);
+            insertLayers(anchorId, [layer]);
         } catch (e) {
             if ((e as Error).message !== 'cancelled') toast('error', `Encode failed: ${(e as Error).message}`);
         }
-    }, [compositeBelow, runEngineEncode, commitToActiveLayer, toast]);
+    }, [compositeBelow, insertionIndex, memoryFull, runEngineEncode, encodedLayer, insertLayers, toast]);
 
-    const newLayerEncode = useCallback(async () => {
+    const reencodeLayer = useCallback(async () => {
         const source = originalRef.current;
         if (!source || glicEngine.isBusy) return;
-        const ls = layersRef.current;
-        const budget = canAddLayer(ls, source.width, source.height);
-        if (!budget.ok) {
-            toast('error', `Layer memory is full (${budget.usedMB} of ${budget.budgetMB} MB) - flatten or delete layers to continue`);
+        const target = layersRef.current.find(l => l.id === activeIdRef.current);
+        if (!target || target.kind !== 'pixel') {
+            // nothing to replace on the Background or an adjustment layer
+            toast('info', 'Select a glitch layer to re-encode - ENCODE (E) adds a new one');
             return;
         }
         try {
-            const input = compositeBelow(source, ls.length);
-            const res = await runEngineEncode(input);
+            const res = await runEngineEncode(compositeBelow(source, layersRef.current.indexOf(target)));
+            const ls = layersRef.current;
+            const idx = ls.findIndex(l => l.id === target.id);
+            if (idx < 0) return; // deleted while encoding
             snapshot();
-            const sel = selectionRef.current;
-            const mask = sel ? sel.slice() : null;
-            const layer = makeLayer(nextLayerName(layersRef.current), res.preview, {
-                mask,
-                file: res.file,
-                resolved: res.resolvedConfig,
-                thumb: imageDataToThumbnail(res.preview, mask),
-            });
-            setLayers([...layersRef.current, layer]);
-            setActiveLayerIdState(layer.id);
+            const fresh = encodedLayer(target.name, res.preview, res.file, res.resolvedConfig);
+            const next = [...ls];
+            // no selection = full frame; a stale mask must not survive a re-encode
+            next[idx] = { ...ls[idx], result: fresh.result, file: fresh.file, resolved: fresh.resolved, mask: fresh.mask };
+            next[idx].thumb = layerThumbnail(next[idx], next[idx].mask);
+            setLayers(next);
         } catch (e) {
             if ((e as Error).message !== 'cancelled') toast('error', `Encode failed: ${(e as Error).message}`);
         }
-    }, [compositeBelow, runEngineEncode, snapshot, toast]);
+    }, [compositeBelow, runEngineEncode, encodedLayer, snapshot, toast]);
 
     const iterate = useCallback(
         async (times: number) => {
             const source = originalRef.current;
             if (!source || glicEngine.isBusy) return;
+            const anchorId = activeIdRef.current;
+            const made: GlitchLayer[] = [];
             setIsProcessing(true);
             setProgress(0);
             try {
-                const idx = layersRef.current.findIndex(l => l.id === activeIdRef.current);
-                let input = compositeBelow(source, idx);
-                let last: Awaited<ReturnType<typeof glicEngine.encode>> | null = null;
+                let input = compositeBelow(source, insertionIndex(anchorId));
                 for (let i = 0; i < times; i++) {
-                    last = await glicEngine.encode(input, configRef.current, (_pc, overall) => {
+                    if (memoryFull(made)) break;
+                    const res = await glicEngine.encode(input, configRef.current, (_pc, overall) => {
                         setProgress((i + overall) / times);
                     });
-                    input = last.preview;
-                }
-                if (last) {
-                    setResolved(last.resolvedConfig);
-                    setLastSegments(last.segments);
-                    commitToActiveLayer(last.preview, last.file, last.resolvedConfig);
+                    setResolved(res.resolvedConfig);
+                    setLastSegments(res.segments);
+                    const layer = encodedLayer(
+                        nextLayerName([...layersRef.current, ...made]),
+                        res.preview,
+                        res.file,
+                        res.resolvedConfig
+                    );
+                    made.push(layer);
+                    // each pass feeds on what the stack now shows (mask included)
+                    input = compositeLayers(input, [layer]);
                 }
             } catch (e) {
                 if ((e as Error).message !== 'cancelled') toast('error', `Iterate failed: ${(e as Error).message}`);
             } finally {
+                // passes finished before a cancel or error are kept
+                insertLayers(anchorId, made);
                 setIsProcessing(false);
                 setProgress(null);
             }
         },
-        [compositeBelow, commitToActiveLayer, toast]
+        [compositeBelow, insertionIndex, memoryFull, encodedLayer, insertLayers, toast]
     );
 
     const cancel = useCallback(() => {
@@ -683,7 +701,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     setSelectionState(null);
                     setLastSelection(null);
                 } else {
-                    commitToActiveLayer(res.preview, bytes, null);
+                    insertLayers(activeIdRef.current, [
+                        encodedLayer(nextLayerName(layersRef.current), res.preview, bytes, null),
+                    ]);
                 }
                 toast('success', `Decoded ${res.width}×${res.height} .glic file`);
             } catch (e) {
@@ -693,7 +713,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setProgress(null);
             }
         },
-        [separateChannels, snapshot, commitToActiveLayer, toast]
+        [separateChannels, snapshot, insertLayers, encodedLayer, toast]
     );
 
     // --- mask library ---
@@ -881,7 +901,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             savePng,
             saveGlic,
             encodeNow,
-            newLayerEncode,
+            reencodeLayer,
             iterate,
             undo,
             cancel,
@@ -935,7 +955,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             savePng,
             saveGlic,
             encodeNow,
-            newLayerEncode,
+            reencodeLayer,
             iterate,
             undo,
             cancel,

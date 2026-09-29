@@ -3,8 +3,8 @@ import { startTour } from '../core/tour';
 import { Compass } from 'lucide-react';
 
 const SHORTCUTS: [string, string][] = [
-    ['E', 'Encode into the active layer'],
-    ['R', 'Encode into a new layer on top'],
+    ['E', 'Encode into a new layer above the active one'],
+    ['R', 'Re-encode the active layer in place'],
     ['U', 'Undo last encode'],
     ['S', 'Save processed image (PNG)'],
     ['G', 'Save .glic file'],

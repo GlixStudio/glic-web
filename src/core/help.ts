@@ -81,17 +81,17 @@ export const HELP = {
     // --- actions ---
     encode: {
         title: 'Encode',
-        body: 'Runs the codec into the active layer (creates Layer 1 if there is none). The current selection becomes that layer’s mask, so only the selected region shows the glitch. With no selection the layer covers the full frame, replacing any earlier mask.',
+        body: 'Encodes what you see up to the active layer into a NEW layer right above it. Your imported image is the Background, the first encode becomes Layer 1, the next Layer 2 - each one glitching the stack beneath it, each separately adjustable. The current selection becomes the new layer’s mask.',
         shortcut: 'E',
     },
-    newLayer: {
-        title: 'New layer',
-        body: 'Encodes the current composite into a fresh layer on top of the stack - stacking damage on damage, but every pass stays separately adjustable.',
+    reencode: {
+        title: 'Re-encode layer',
+        body: 'Runs the codec again into the active glitch layer, replacing its pixels with your current settings - for tuning one pass without stacking another. The selection (or full frame) becomes its mask.',
         shortcut: 'R',
     },
     iterate: {
         title: 'Iterate',
-        body: 'Feeds the encoder its own output this many times in a row, inside the active layer. Compound rot in one click.',
+        body: 'Feeds the encoder its own output this many times in a row - every pass lands on its own new layer, like frames of compound rot. Hide or delete the ones you don’t want.',
     },
     undo: {
         title: 'Undo',
@@ -110,7 +110,7 @@ export const HELP = {
     },
     importGlic: {
         title: 'Import .glic',
-        body: 'Decodes a .glic file - from this app, desktop GLIC, or one you corrupted by hand - into the active layer.',
+        body: 'Decodes a .glic file - from this app, desktop GLIC, or one you corrupted by hand - into a new layer above the active one.',
         shortcut: 'I',
     },
     overrideHeader: {

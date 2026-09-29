@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../core/AppContext';
-import { Play, Download, Undo2, Repeat, FileUp, X, Layers } from 'lucide-react';
+import { Play, Download, Undo2, Repeat, FileUp, X, RefreshCw } from 'lucide-react';
 import { HELP } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
 
@@ -13,21 +13,24 @@ export const ActionBar: React.FC = () => {
         progress,
         canUndo,
         encodeNow,
-        newLayerEncode,
+        reencodeLayer,
         iterate,
         undo,
         cancel,
         importGlic,
         savePng,
         saveGlic,
+        layers,
+        activeLayerId,
     } = useApp();
+    const canReencode = layers.some(l => l.id === activeLayerId && l.kind === 'pixel');
 
     const glicInputRef = useRef<HTMLInputElement>(null);
     const [overrideHeader, setOverrideHeader] = useState(false);
     const [iterateCount, setIterateCount] = useState(5);
 
     // keyboard shortcuts (plain keys, ignored while typing in a field)
-    const actions = useRef({ encodeNow, newLayerEncode, undo, savePng: () => {}, saveGlic: () => {}, openImport: () => {} });
+    const actions = useRef({ encodeNow, reencodeLayer, undo, savePng: () => {}, saveGlic: () => {}, openImport: () => {} });
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
@@ -35,7 +38,7 @@ export const ActionBar: React.FC = () => {
             const a = actions.current;
             switch (e.key.toLowerCase()) {
                 case 'e': e.preventDefault(); a.encodeNow(); break;
-                case 'r': e.preventDefault(); a.newLayerEncode(); break;
+                case 'r': e.preventDefault(); a.reencodeLayer(); break;
                 case 'u': e.preventDefault(); a.undo(); break;
                 case 's': e.preventDefault(); a.savePng(); break;
                 case 'g': e.preventDefault(); a.saveGlic(); break;
@@ -55,7 +58,7 @@ export const ActionBar: React.FC = () => {
     useEffect(() => {
         actions.current = {
             encodeNow,
-            newLayerEncode,
+            reencodeLayer,
             undo,
             savePng,
             saveGlic,
@@ -105,18 +108,18 @@ export const ActionBar: React.FC = () => {
                 </button>
                 </Tooltip>
 
-                <Tooltip help={HELP.newLayer}>
+                <Tooltip help={HELP.reencode}>
                 <button
                     className={`flex-1 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
-                        !processed || isProcessing
+                        !canReencode || isProcessing
                             ? 'bg-cream-3 text-ink/30 border border-ink/20 cursor-not-allowed'
                             : 'bg-cream-2 text-ink border border-ink hover:bg-white shadow-[2px_2px_0_0_rgba(22,21,15,0.9)] active:shadow-none'
                     }`}
-                    onClick={newLayerEncode}
-                    disabled={!processed || isProcessing}
+                    onClick={reencodeLayer}
+                    disabled={!canReencode || isProcessing}
                 >
-                    <Layers className="w-4 h-4" />
-                    <span className="text-sm">NEW LAYER</span>
+                    <RefreshCw className="w-4 h-4" />
+                    <span className="text-sm">RE-ENCODE</span>
                     <span className="text-[10px] opacity-60 font-normal">R</span>
                 </button>
                 </Tooltip>
