@@ -38,6 +38,9 @@ export interface ProjectRecord {
     activeLayerIndex: number;
     config: CodecConfig;
     separateChannels: boolean;
+    /** absent in projects saved before the Background could be hidden (= true) */
+    backgroundVisible?: boolean;
+    backgroundLocked?: boolean;
 }
 
 export interface ProjectMeta {

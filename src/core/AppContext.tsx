@@ -12,7 +12,15 @@ import {
     type Anchor,
     type ResampleMethod,
 } from './resize';
-import { compositeLayers, makeLayer, makeAdjustmentLayer, cloneLayer, canAddLayer, type GlitchLayer } from './layers';
+import {
+    compositeLayers,
+    makeLayer,
+    makeAdjustmentLayer,
+    cloneLayer,
+    canAddLayer,
+    transparentLike,
+    type GlitchLayer,
+} from './layers';
 import { EFFECT_DEFS, makeEffect, type Effect, type EffectType } from './effects';
 import {
     imageDataToThumbnail,
@@ -64,6 +72,12 @@ interface AppState {
     layers: GlitchLayer[];
     /** null = the Background (the imported source image) is active */
     activeLayerId: string | null;
+    /** false: the Background is hidden and the stack composites over transparency */
+    backgroundVisible: boolean;
+    /** locked (the default) pins the Background visible; unlock it to hide it */
+    backgroundLocked: boolean;
+    setBackgroundVisible: (v: boolean) => void;
+    setBackgroundLocked: (v: boolean) => void;
     setActiveLayerId: (id: string | null) => void;
     /** non-structural edits: visibility, opacity, blend, name, mask, thumb */
     updateLayer: (id: string, patch: Partial<GlitchLayer>) => void;
@@ -173,6 +187,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [originalImage, setOriginalImage] = useState<ImageData | null>(null);
     const [layers, setLayers] = useState<GlitchLayer[]>([]);
     const [activeLayerId, setActiveLayerIdState] = useState<string | null>(null);
+    const [backgroundVisible, setBackgroundVisibleState] = useState(true);
+    const [backgroundLocked, setBackgroundLockedState] = useState(true);
     const [resolved, setResolved] = useState<CodecConfig | null>(null);
     const [lastSegments, setLastSegments] = useState<Segment[][] | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -207,10 +223,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const masksRef = useRef(masks);
     masksRef.current = masks;
 
+    const bgVisibleRef = useRef(backgroundVisible);
+    bgVisibleRef.current = backgroundVisible;
+    /** what the stack composites over: the source, or transparency while the Background is hidden */
+    const baseOf = useCallback((source: ImageData) => (bgVisibleRef.current ? source : transparentLike(source)), []);
+
     const processed = useMemo(
-        () => (originalImage && layers.length > 0 ? compositeLayers(originalImage, layers) : null),
-        [originalImage, layers]
+        () =>
+            originalImage && (layers.length > 0 || !backgroundVisible)
+                ? compositeLayers(backgroundVisible ? originalImage : transparentLike(originalImage), layers)
+                : null,
+        [originalImage, layers, backgroundVisible]
     );
+
+    const setBackgroundLocked = useCallback((locked: boolean) => {
+        setBackgroundLockedState(locked);
+        if (locked) setBackgroundVisibleState(true); // the lock pins it visible
+    }, []);
+
+    const setBackgroundVisible = useCallback((v: boolean) => {
+        setBackgroundVisibleState(v);
+        if (!v) setBackgroundLockedState(false);
+    }, []);
+
+    const resetBackground = useCallback(() => {
+        setBackgroundVisibleState(true);
+        setBackgroundLockedState(true);
+    }, []);
 
     const processedRef = useRef(processed);
     processedRef.current = processed;
@@ -249,6 +288,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const loadImage = useCallback((img: ImageData) => {
         setOriginalImage(img);
+        resetBackground();
         setLayers([]);
         setActiveLayerIdState(null);
         setResolved(null);
@@ -259,7 +299,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setProjectId(null);
         setProjectName('Untitled');
         onceHint('glic_hint_load_v1', 'Image loaded - press E to encode, or pick a preset first');
-    }, [onceHint]);
+    }, [onceHint, resetBackground]);
 
     const setSelection = useCallback((mask: Mask | null) => {
         setSelectionState(prev => {
@@ -370,11 +410,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const ls = layersRef.current;
         if (!source || ls.length === 0) return;
         snapshot();
-        setOriginalImage(compositeLayers(source, ls));
+        // like Photoshop, a hidden Background is discarded: the flattened image keeps the transparency
+        setOriginalImage(compositeLayers(baseOf(source), ls));
         setLayers([]);
         setActiveLayerIdState(null);
+        setBackgroundVisibleState(true);
         toast('info', 'Flattened - the composite is the new baseline');
-    }, [snapshot, toast]);
+    }, [snapshot, baseOf, toast]);
 
     const reorderLayer = useCallback(
         (id: string, to: number) => {
@@ -397,6 +439,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const ls = layersRef.current;
             const i = ls.findIndex(l => l.id === id);
             if (!source || i < 0) return;
+            if (i === 0 && !bgVisibleRef.current) {
+                toast('info', 'Show the Background to merge into it');
+                return;
+            }
             snapshot();
             if (i === 0) {
                 // onto the Background: bake this one layer into the source
@@ -414,7 +460,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 mask = new Uint8ClampedArray(lower.mask.length);
                 for (let k = 0; k < mask.length; k++) mask[k] = Math.max(lower.mask[k], upper.mask[k]);
             }
-            const result = compositeLayers(source, ls.slice(0, i + 1));
+            const result = compositeLayers(baseOf(source), ls.slice(0, i + 1));
             // (no .glic stream: the merged pixels are no single encode's output)
             const merged = makeLayer(lower.name, result, { mask, thumb: imageDataToThumbnail(result, mask) });
             const next = [...ls];
@@ -422,7 +468,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setLayers(next);
             setActiveLayerIdState(merged.id);
         },
-        [snapshot]
+        [snapshot, baseOf, toast]
     );
 
     const mergeVisible = useCallback(() => {
@@ -430,13 +476,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const ls = layersRef.current;
         if (!source || !ls.some(l => l.visible)) return;
         snapshot();
-        const result = compositeLayers(source, ls);
+        const result = compositeLayers(baseOf(source), ls);
         const merged = makeLayer('Merged', result, { thumb: imageDataToThumbnail(result, null) });
         // hidden layers stay (beneath the full-frame merge, so nothing visible changes)
         setLayers([...ls.filter(l => !l.visible), merged]);
         setActiveLayerIdState(merged.id);
         toast('info', 'Merged visible layers into one');
-    }, [snapshot, toast]);
+    }, [snapshot, baseOf, toast]);
 
     const invertLayerMask = useCallback(
         (id: string) => {
@@ -556,6 +602,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     /** composite of visible layers strictly below the given index (or the whole stack) */
     const compositeBelow = useCallback((source: ImageData, upTo: number) => {
+        // always over the real source, even while the Background is hidden: this is
+        // the codec's input, and glitching transparency would only yield an empty layer
         const below = upTo < 0 ? [] : layersRef.current.slice(0, upTo);
         return below.length ? compositeLayers(source, below) : source;
     }, []);
@@ -744,6 +792,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     activeLayerIndex: ls.findIndex(l => l.id === activeIdRef.current),
                     config: cloneConfig(configRef.current),
                     separateChannels,
+                    backgroundVisible: bgVisibleRef.current,
+                    backgroundLocked,
                 };
                 await saveProjectRecord(record);
                 setProjectId(id);
@@ -753,7 +803,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 toast('error', `Save failed: ${(e as Error).message}`);
             }
         },
-        [separateChannels, toast]
+        [separateChannels, backgroundLocked, toast]
     );
 
     const openProject = useCallback(
@@ -786,6 +836,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setActiveLayerIdState(restored[rec.activeLayerIndex]?.id ?? restored[restored.length - 1]?.id ?? null);
                 setConfig(Object.assign(new CodecConfig(), rec.config));
                 setSeparateChannels(rec.separateChannels);
+                setBackgroundVisibleState(rec.backgroundVisible ?? true);
+                setBackgroundLockedState(rec.backgroundLocked ?? true);
                 setHistory([]);
                 setSelectionState(null);
                 setLastSelection(null);
@@ -803,6 +855,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const newProject = useCallback(() => {
         setOriginalImage(null);
+        resetBackground();
         setLayers([]);
         setActiveLayerIdState(null);
         setResolved(null);
@@ -812,7 +865,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setLastSelection(null);
         setProjectId(null);
         setProjectName('Untitled');
-    }, []);
+    }, [resetBackground]);
 
     // --- exports ---
 
@@ -1032,6 +1085,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             processed,
             layers,
             activeLayerId,
+            backgroundVisible,
+            backgroundLocked,
+            setBackgroundVisible,
+            setBackgroundLocked,
             setActiveLayerId,
             updateLayer,
             moveLayer,
@@ -1096,6 +1153,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             processed,
             layers,
             activeLayerId,
+            backgroundVisible,
+            backgroundLocked,
+            setBackgroundVisible,
+            setBackgroundLocked,
             setActiveLayerId,
             updateLayer,
             moveLayer,

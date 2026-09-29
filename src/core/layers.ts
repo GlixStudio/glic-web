@@ -278,6 +278,18 @@ const blendPixel = (mode: BlendMode): RGBBlend | null => {
     }
 };
 
+const transparentCache = new WeakMap<ImageData, ImageData>();
+
+/** a fully transparent frame the size of `img` - the base while the Background is hidden */
+export const transparentLike = (img: ImageData): ImageData => {
+    let t = transparentCache.get(img);
+    if (!t) {
+        t = new ImageData(img.width, img.height);
+        transparentCache.set(img, t);
+    }
+    return t;
+};
+
 /**
  * Composites the layer stack (bottom -> top) over the source image.
  * Per pixel: out = lerp(under, blend(mode, layer, under), mask/255 * opacity/100),
