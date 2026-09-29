@@ -9,6 +9,9 @@ import {
     resampleMask,
     resizeCanvas as resizeCanvasImage,
     resizeCanvasMask,
+    orientImage,
+    orientMask,
+    type Orient,
     type Anchor,
     type ResampleMethod,
 } from './resize';
@@ -22,6 +25,7 @@ import {
     type GlitchLayer,
 } from './layers';
 import { EFFECT_DEFS, makeEffect, type Effect, type EffectType } from './effects';
+import { IDENTITY_TRANSFORM, isIdentity, transformImage, transformMask, untransformMask, type LayerTransform } from './transform';
 import {
     imageDataToThumbnail,
     layerThumbnail,
@@ -92,6 +96,12 @@ interface AppState {
     /** replaces every visible layer with one layer of what you see */
     mergeVisible: () => void;
     invertLayerMask: (id: string) => void;
+    /** move / scale / rotate / flip a layer non-destructively; pushUndo at the start of a gesture */
+    setLayerTransform: (id: string, t: LayerTransform, pushUndo?: boolean) => void;
+    /** Delete: removes the selected area from the active layer (through its mask) */
+    clearSelectedPixels: () => void;
+    /** ⌘J / ⇧⌘J with a selection: the selected part of the active layer (or Background) as a new layer */
+    layerViaCopy: (cut: boolean) => void;
     /** adds an adjustment layer above the active one (the selection becomes its mask) */
     addAdjustmentLayer: (type: EffectType) => void;
 
@@ -170,6 +180,8 @@ interface AppState {
     // --- image / canvas size ---
     resizeImage: (width: number, height: number, method: ResampleMethod) => void;
     resizeCanvas: (width: number, height: number, anchor: Anchor, fill: [number, number, number, number]) => void;
+    /** Image > Image Rotation: quarter turns and flips of the whole document */
+    orientCanvas: (o: Orient, label: string) => void;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -575,10 +587,85 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         (id: string) => {
             const layer = layersRef.current.find(l => l.id === id);
             if (!layer) return;
-            const mask = selectionRef.current ? selectionRef.current.slice() : null;
+            const sel = selectionRef.current;
+            const img = originalRef.current;
+            // the selection is drawn in canvas space; a moved layer's mask lives in layer space
+            const mask = sel && img ? untransformMask(sel, img.width, img.height, layer.transform) : null;
             updateLayer(id, { mask, thumb: layerThumbnail(layer, mask) });
         },
         [updateLayer]
+    );
+
+    const setLayerTransform = useCallback(
+        (id: string, t: LayerTransform, pushUndo = false) => {
+            if (pushUndo) snapshot();
+            setLayers(ls =>
+                ls.map(l => {
+                    if (l.id !== id) return l;
+                    const next = { ...l, transform: t };
+                    return { ...next, thumb: next.kind === 'pixel' ? layerThumbnail(next, next.mask) : next.thumb };
+                })
+            );
+        },
+        [snapshot]
+    );
+
+    const clearSelectedPixels = useCallback(() => {
+        const sel = selectionRef.current;
+        const img = originalRef.current;
+        if (!sel || !img) return;
+        const layer = layersRef.current.find(l => l.id === activeIdRef.current);
+        if (!layer) {
+            toast('info', 'The Background is locked - select a layer to delete from, or ⌘J to lift the selection onto one');
+            return;
+        }
+        snapshot();
+        const cut = untransformMask(sel, img.width, img.height, layer.transform);
+        const mask = new Uint8ClampedArray(cut.length);
+        for (let i = 0; i < mask.length; i++) mask[i] = ((layer.mask ? layer.mask[i] : 255) * (255 - cut[i])) / 255;
+        updateLayer(layer.id, { mask, thumb: layerThumbnail(layer, mask) });
+    }, [snapshot, updateLayer, toast]);
+
+    const layerViaCopy = useCallback(
+        (cut: boolean) => {
+            const sel = selectionRef.current;
+            const img = originalRef.current;
+            if (!sel || !img) return;
+            const ls = layersRef.current;
+            const src = ls.find(l => l.id === activeIdRef.current) ?? null;
+            if (src && !canAddLayer(ls, img.width, img.height).ok) {
+                toast('error', 'Layer memory is full - flatten or delete layers to continue');
+                return;
+            }
+            snapshot();
+            let copy: GlitchLayer;
+            if (!src) {
+                // from the Background: its pixels, limited to the selection
+                const mask = sel.slice();
+                copy = makeLayer(nextLayerName(ls), img, { mask, thumb: imageDataToThumbnail(img, mask) });
+                if (cut) toast('info', 'The Background is locked - copied the selection instead of cutting it');
+            } else {
+                const selL = untransformMask(sel, img.width, img.height, src.transform);
+                const mask = new Uint8ClampedArray(selL.length);
+                for (let i = 0; i < mask.length; i++) mask[i] = ((src.mask ? src.mask[i] : 255) * selL[i]) / 255;
+                copy = { ...cloneLayer(src, nextLayerName(ls)), mask, file: null };
+                copy.thumb = copy.kind === 'pixel' ? layerThumbnail(copy, mask) : null;
+            }
+            const next = [...ls];
+            const at = src ? ls.indexOf(src) : -1;
+            if (cut && src) {
+                const selL = untransformMask(sel, img.width, img.height, src.transform);
+                const rest = new Uint8ClampedArray(selL.length);
+                for (let i = 0; i < rest.length; i++) rest[i] = ((src.mask ? src.mask[i] : 255) * (255 - selL[i])) / 255;
+                next[at] = { ...src, mask: rest, thumb: src.kind === 'pixel' ? layerThumbnail(src, rest) : src.thumb };
+            }
+            next.splice(at + 1, 0, copy);
+            setLayers(next);
+            setActiveLayerIdState(copy.id);
+            setSelectionState(null);
+            toast('success', `${cut && src ? 'Cut' : 'Copied'} the selection to ${copy.name} - press V to move it`);
+        },
+        [snapshot, toast]
     );
 
     // --- encoding into layers ---
@@ -668,7 +755,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const fresh = encodedLayer(target.name, result, file, resolvedCfg);
                 const next = [...ls];
                 // no selection = full frame; a stale mask must not survive a re-encode
-                next[idx] = { ...target, result: fresh.result, file: fresh.file, resolved: fresh.resolved, mask: fresh.mask };
+                // the fresh pixels already sit where the layer is seen: the move is baked in
+                next[idx] = {
+                    ...target,
+                    result: fresh.result,
+                    file: fresh.file,
+                    resolved: fresh.resolved,
+                    mask: fresh.mask,
+                    transform: { ...IDENTITY_TRANSFORM },
+                };
                 next[idx].thumb = layerThumbnail(next[idx], next[idx].mask);
                 setLayers(next);
             } else {
@@ -825,6 +920,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         mask: l.mask ? new Uint8Array(l.mask) : null,
                         result: l.result ? await imageDataToPngBlob(l.result) : null,
                         effects: l.effects,
+                        transform: l.transform,
                         file: l.file,
                         resolved: l.resolved,
                         thumb: l.thumb,
@@ -878,7 +974,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                                       resolved: sl.resolved ? Object.assign(new CodecConfig(), sl.resolved) : null,
                                       thumb: sl.thumb,
                                   });
-                        return { ...base, visible: sl.visible, opacity: sl.opacity, blendMode: sl.blendMode };
+                        return {
+                            ...base,
+                            visible: sl.visible,
+                            opacity: sl.opacity,
+                            blendMode: sl.blendMode,
+                            transform: sl.transform ?? { ...IDENTITY_TRANSFORM },
+                        };
                     })
                 );
                 setOriginalImage(source);
@@ -1061,9 +1163,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const applyMaskToLayer = useCallback(
         (id: string) => {
-            const mask = maskAtImageSize(id);
+            const canvasMask = maskAtImageSize(id);
             const layer = layersRef.current.find(l => l.id === activeIdRef.current);
-            if (!mask || !layer) return;
+            const img = originalRef.current;
+            if (!canvasMask || !layer || !img) return;
+            const mask = untransformMask(canvasMask, img.width, img.height, layer.transform);
             updateLayer(layer.id, { mask, thumb: layerThumbnail(layer, mask) });
         },
         [maskAtImageSize, updateLayer]
@@ -1082,10 +1186,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const hadStreams = ls.some(l => l.file);
             setLayers(
                 ls.map(l => {
-                    const result = l.result ? img(l.result) : null;
-                    const m = l.mask ? mask(l.mask, source.width, source.height) : null;
+                    // bake any move / rotation first, so it resamples together with the document
+                    const moved = !isIdentity(l.transform);
+                    const baked = moved && l.result ? transformImage(l.result, l.transform) : l.result;
+                    const bakedMask = moved && l.mask ? transformMask(l.mask, source.width, source.height, l.transform) : l.mask;
+                    const result = baked ? img(baked) : null;
+                    const m = bakedMask ? mask(bakedMask, source.width, source.height) : null;
                     // a .glic stream describes the old pixel grid; it can no longer be saved as-is
-                    const next = { ...l, result, mask: m, file: null };
+                    const next = { ...l, result, mask: m, file: null, transform: { ...IDENTITY_TRANSFORM } };
                     return { ...next, thumb: layerThumbnail(next, m) };
                 })
             );
@@ -1122,6 +1230,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         [transformDocument]
     );
 
+    const orientCanvas = useCallback(
+        (o: Orient, label: string) =>
+            transformDocument(
+                i => orientImage(i, o),
+                (m, w, h) => orientMask(m, w, h, o),
+                label
+            ),
+        [transformDocument]
+    );
+
     const value = useMemo<AppState>(
         () => ({
             config,
@@ -1147,6 +1265,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             mergeDown,
             mergeVisible,
             invertLayerMask,
+            setLayerTransform,
+            clearSelectedPixels,
+            layerViaCopy,
             addAdjustmentLayer,
             addEffect,
             updateEffect,
@@ -1193,6 +1314,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             applyMaskToLayer,
             resizeImage,
             resizeCanvas,
+            orientCanvas,
         }),
         [
             config,
@@ -1216,6 +1338,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             mergeDown,
             mergeVisible,
             invertLayerMask,
+            setLayerTransform,
+            clearSelectedPixels,
+            layerViaCopy,
             addAdjustmentLayer,
             addEffect,
             updateEffect,
@@ -1261,6 +1386,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             applyMaskToLayer,
             resizeImage,
             resizeCanvas,
+            orientCanvas,
         ]
     );
 
