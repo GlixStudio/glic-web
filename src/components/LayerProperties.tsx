@@ -4,7 +4,9 @@ import { EFFECT_DEFS, type Effect, type EffectParamDef, type EffectParams } from
 import { layerThumbnail } from '../core/imageio';
 import { HELP } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
-import { ChevronDown, ChevronRight, ArrowUp, ArrowDown, Trash2, RotateCcw, Dices } from 'lucide-react';
+import { ChevronDown, ChevronRight, ArrowUp, ArrowDown, Trash2, RotateCcw, Dices, FlipHorizontal2, FlipVertical2 } from 'lucide-react';
+import { IDENTITY_TRANSFORM, isIdentity, type LayerTransform } from '../core/transform';
+import { layerMask } from '../core/layers';
 
 const fmt = (def: EffectParamDef, v: number) => {
     if (def.options) return def.options[Math.round(v)] ?? String(v);
@@ -169,6 +171,39 @@ const EffectCard: React.FC<{ layerId: string; effect: Effect; isFirst: boolean; 
     );
 };
 
+/** a compact number field that commits on Enter / blur (one undo step per commit) */
+const NumField: React.FC<{ label: string; value: number; unit: string; onCommit: (v: number) => void }> = ({
+    label,
+    value,
+    unit,
+    onCommit,
+}) => {
+    const [draft, setDraft] = useState<string | null>(null);
+    const commit = () => {
+        if (draft === null) return;
+        const v = parseFloat(draft);
+        if (Number.isFinite(v)) onCommit(v);
+        setDraft(null);
+    };
+    return (
+        <label className="flex items-center gap-1 text-[10px] text-ink-2 min-w-0">
+            <span className="font-bold w-3 flex-shrink-0">{label}</span>
+            <input
+                value={draft ?? String(Math.round(value * 10) / 10)}
+                onChange={e => setDraft(e.target.value)}
+                onBlur={commit}
+                onKeyDown={e => {
+                    if (e.key === 'Enter') commit();
+                    if (e.key === 'Escape') setDraft(null);
+                }}
+                inputMode="decimal"
+                className="w-full min-w-0 bg-cream-2 border border-ink text-ink text-[10px] font-mono rounded px-1 py-0.5 focus:outline-none focus:border-glx-orange"
+            />
+            <span className="flex-shrink-0">{unit}</span>
+        </label>
+    );
+};
+
 const smallBtn =
     'py-1 rounded bg-cream-3 hover:bg-white text-ink text-[10px] disabled:opacity-40 disabled:hover:bg-cream-3 transition-colors';
 
@@ -183,6 +218,8 @@ export const LayerProperties: React.FC = () => {
         setLayerMaskFromSelection,
         invertLayerMask,
         updateLayer,
+        setLayerTransform,
+        originalImage,
         toast,
     } = useApp();
     const active = layers.find(l => l.id === activeLayerId) ?? null;
@@ -218,7 +255,15 @@ export const LayerProperties: React.FC = () => {
                         </button>
                     </Tooltip>
                     <Tooltip help={HELP.editMask}>
-                        <button onClick={() => active.mask && setSelection(active.mask.slice())} disabled={!active.mask} className={smallBtn}>
+                        <button
+                            onClick={() => {
+                                // the selection is canvas space: load the mask where the layer actually is
+                                const m = originalImage && layerMask(active, originalImage.width, originalImage.height);
+                                if (m) setSelection(m.slice());
+                            }}
+                            disabled={!active.mask}
+                            className={smallBtn}
+                        >
                             Edit
                         </button>
                     </Tooltip>
@@ -238,6 +283,11 @@ export const LayerProperties: React.FC = () => {
                     </Tooltip>
                 </div>
             </div>
+
+            <TransformSection
+                transform={active.transform}
+                onChange={t => setLayerTransform(active.id, t, true)}
+            />
 
             <div className="space-y-1">
                 <Tooltip help={active.kind === 'adjustment' ? HELP.adjustmentLayer : HELP.layerEffects}>
@@ -263,3 +313,41 @@ export const LayerProperties: React.FC = () => {
         </div>
     );
 };
+
+// plain numbers and booleans only - safe as props
+const TransformSection: React.FC<{ transform: LayerTransform; onChange: (t: LayerTransform) => void }> = ({
+    transform: t,
+    onChange,
+}) => (
+    <div className="space-y-1">
+        <div className="flex items-center justify-between">
+            <Tooltip help={HELP.layerTransform}>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ink-2">
+                    Transform {isIdentity(t) && <span className="normal-case font-normal">- none (V to move)</span>}
+                </div>
+            </Tooltip>
+            <div className="flex items-center">
+                <button onClick={() => onChange({ ...t, flipX: !t.flipX })} className={`p-0.5 ${t.flipX ? 'text-glx-orange' : 'text-ink-2 hover:text-ink'}`} title="Flip horizontal">
+                    <FlipHorizontal2 className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => onChange({ ...t, flipY: !t.flipY })} className={`p-0.5 ${t.flipY ? 'text-glx-orange' : 'text-ink-2 hover:text-ink'}`} title="Flip vertical">
+                    <FlipVertical2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                    onClick={() => onChange({ ...IDENTITY_TRANSFORM })}
+                    disabled={isIdentity(t)}
+                    className="p-0.5 text-ink-2 hover:text-ink disabled:opacity-30"
+                    title="Reset transform"
+                >
+                    <RotateCcw className="w-3 h-3" />
+                </button>
+            </div>
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+            <NumField label="X" value={t.x} unit="" onCommit={v => onChange({ ...t, x: Math.round(v) })} />
+            <NumField label="Y" value={t.y} unit="" onCommit={v => onChange({ ...t, y: Math.round(v) })} />
+            <NumField label="S" value={t.scale * 100} unit="%" onCommit={v => onChange({ ...t, scale: Math.max(0.02, v / 100) })} />
+            <NumField label="R" value={t.rotation} unit="°" onCommit={v => onChange({ ...t, rotation: v })} />
+        </div>
+    </div>
+);
