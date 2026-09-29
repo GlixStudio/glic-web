@@ -223,6 +223,9 @@ export const EXTRA_PRESETS: ExtraPreset[] = [
     },
 ];
 
+/** the idea behind a ~b- preset, if it has one */
+export const getPresetNote = (name: string): string | null => EXTRA_PRESETS.find(e => e.name === name)?.note ?? null;
+
 export const applyExtraPreset = (name: string): { config: CodecConfig; separateChannels: boolean } | null => {
     const p = EXTRA_PRESETS.find(e => e.name === name);
     if (!p) return null;
