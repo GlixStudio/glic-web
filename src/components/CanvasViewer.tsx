@@ -636,6 +636,12 @@ export const CanvasViewer: React.FC = () => {
                             height: `${imgH * scale}px`,
                             transform: `translate(${pan.x}px, ${pan.y}px)`,
                             boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+                            // transparency checkerboard, visible where the Background is hidden
+                            backgroundColor: '#fff',
+                            backgroundImage:
+                                'linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%)',
+                            backgroundSize: '16px 16px',
+                            backgroundPosition: '0 0,0 8px,8px -8px,-8px 0',
                         }}
                     >
                         <canvas

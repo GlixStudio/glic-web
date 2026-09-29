@@ -174,15 +174,26 @@ const smallBtn =
 
 /** Properties of the active layer: its mask and its effect stack. */
 export const LayerProperties: React.FC = () => {
-    const { layers, activeLayerId, selection, setSelection, setLayerMaskFromSelection, invertLayerMask, updateLayer, toast } =
-        useApp();
+    const {
+        layers,
+        activeLayerId,
+        backgroundVisible,
+        selection,
+        setSelection,
+        setLayerMaskFromSelection,
+        invertLayerMask,
+        updateLayer,
+        toast,
+    } = useApp();
     const active = layers.find(l => l.id === activeLayerId) ?? null;
 
     if (!active) {
         return (
             <div className="border-t border-line p-2.5 text-[11px] text-ink-2 leading-relaxed">
-                <b className="text-ink">Background</b> is your imported image, locked. ENCODE stacks glitch layers above
-                it; add an adjustment layer (<span className="font-mono">◐</span> below the list) to post-process everything at once.
+                <b className="text-ink">Background</b> is your imported image. ENCODE stacks glitch layers above it; add an
+                adjustment layer (<span className="font-mono">◐</span> below the list) to post-process everything at once.
+                Click its lock to unlock it, then its eye to hide it
+                {backgroundVisible ? '' : ' - hidden now: layers composite over transparency, and PNG export keeps it'}.
             </div>
         );
     }

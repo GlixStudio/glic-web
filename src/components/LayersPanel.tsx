@@ -13,6 +13,7 @@ import {
     Trash2,
     Scan,
     Lock,
+    LockOpen,
     SlidersHorizontal,
     Contrast,
     ArrowDownToLine,
@@ -182,7 +183,8 @@ const BackgroundRow: React.FC<{
     onDragOverRow: () => void;
     onDropRow: () => void;
 }> = ({ isActive, drop, onDragOverRow, onDropRow }) => {
-    const { originalImage, setActiveLayerId } = useApp();
+    const { originalImage, setActiveLayerId, backgroundVisible, backgroundLocked, setBackgroundVisible, setBackgroundLocked } =
+        useApp();
     const thumb = useMemo(() => (originalImage ? imageDataToThumbnail(originalImage, null) : null), [originalImage]);
     return (
         <div
@@ -200,9 +202,23 @@ const BackgroundRow: React.FC<{
             }`}
         >
             {drop && <div className="absolute left-1 right-1 -top-px h-0.5 bg-glx-orange rounded pointer-events-none" />}
-            <span className="p-0.5 flex-shrink-0 text-ink">
-                <Eye className="w-3.5 h-3.5" />
-            </span>
+            <button
+                onClick={e => {
+                    e.stopPropagation();
+                    if (!backgroundLocked) setBackgroundVisible(!backgroundVisible);
+                }}
+                disabled={backgroundLocked}
+                className={`p-0.5 flex-shrink-0 ${backgroundVisible ? 'text-ink' : 'text-ink-2/70'} disabled:cursor-not-allowed`}
+                title={
+                    backgroundLocked
+                        ? 'Background is locked visible - click the lock to unlock it'
+                        : backgroundVisible
+                          ? 'Hide Background (layers composite over transparency)'
+                          : 'Show Background'
+                }
+            >
+                {backgroundVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            </button>
             {thumb && (
                 <img
                     src={thumb}
@@ -211,12 +227,27 @@ const BackgroundRow: React.FC<{
                     className="w-8 h-8 object-contain rounded-sm border border-ink bg-cream-2 flex-shrink-0"
                 />
             )}
-            <span className={`flex-1 min-w-0 truncate text-[11px] italic ${isActive ? 'text-ink' : 'text-ink-2'}`}>
+            <span
+                className={`flex-1 min-w-0 truncate text-[11px] italic ${isActive ? 'text-ink' : 'text-ink-2'} ${
+                    backgroundVisible ? '' : 'opacity-60'
+                }`}
+            >
                 Background
             </span>
-            <span title="The imported image - locked. Encodes stack above it.">
-                <Lock className="w-3 h-3 text-ink-2 flex-shrink-0" />
-            </span>
+            <button
+                onClick={e => {
+                    e.stopPropagation();
+                    setBackgroundLocked(!backgroundLocked);
+                }}
+                className="p-0.5 flex-shrink-0 text-ink-2 hover:text-ink"
+                title={
+                    backgroundLocked
+                        ? 'Locked visible - click to unlock, then hide it with the eye'
+                        : 'Unlocked - click to lock it visible again'
+                }
+            >
+                {backgroundLocked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
+            </button>
         </div>
     );
 };
