@@ -4,10 +4,11 @@
 // wavelet when decoding. Names start with "~b-" so they sort after the originals.
 
 import type { WaveletFilterBank } from './waveletCoefficients';
+import { ARTSCI_WAVELETS } from './artsciWavelets';
 
 export const EXTRA_WAVELET_FIRST_ID = 68;
 
-export const EXTRA_WAVELET_FILTERS: Record<number, WaveletFilterBank> = {
+const HAND_MADE: Record<number, WaveletFilterBank> = {
     // analysis/synthesis of JWave bior 2/2 swapped (rbio family)
     68: {
         name: "~b- Reverse Bior 2/2",
@@ -159,3 +160,12 @@ export const EXTRA_WAVELET_FILTERS: Record<number, WaveletFilterBank> = {
         transformWavelength: 2,
     },
 };
+
+/** hand-made banks (68-82) followed by the derived art-science family (83+, see artsciWavelets.ts) */
+export const EXTRA_WAVELET_FILTERS: Record<number, WaveletFilterBank> = {
+    ...HAND_MADE,
+    ...Object.fromEntries(Object.entries(ARTSCI_WAVELETS).map(([id, w]) => [id, w.bank])),
+};
+
+/** concept note for a ~b- wavelet, if it has one */
+export const getWaveletNote = (id: number): string | null => ARTSCI_WAVELETS[id]?.note ?? null;

@@ -2,11 +2,25 @@ import { describe, it, expect } from 'vitest';
 import { WaveletTransform, TRANSTYPE_FWT, TRANSTYPE_WPT, WAVELET_IDS, WAVELETNO, isValidWaveletId, resolveWaveletId, getWaveletName } from '../Wavelets';
 import { EXTRA_WAVELET_FILTERS, EXTRA_WAVELET_FIRST_ID } from '../extraWavelets';
 import { CodecConfig, encode, decodeParse } from '../Codec';
+import { ARTSCI_WAVELETS } from '../artsciWavelets';
+import { render as renderArtsci } from '../../../scripts/wavelab/artsci';
+import { readFileSync } from 'node:fs';
 
 const extraIds = Object.keys(EXTRA_WAVELET_FILTERS).map(Number);
 
-// the orthogonal constructions (lattice / rotor) reconstruct perfectly by design
-const PR_NAMES = ['~b- Lattice 20°', '~b- Lattice 120°', '~b- Bleach', '~b- Fade', '~b- Rotor 15°', '~b- Rotor 80°'];
+// the orthogonal constructions (lattice / rotor) reconstruct perfectly by design,
+// and so does every art-science bank flagged lawful
+const PR_NAMES = [
+    '~b- Lattice 20°',
+    '~b- Lattice 120°',
+    '~b- Bleach',
+    '~b- Fade',
+    '~b- Rotor 15°',
+    '~b- Rotor 80°',
+    ...Object.values(ARTSCI_WAVELETS)
+        .filter(w => w.lawful)
+        .map(w => w.bank.name),
+];
 
 const makeBlock = (size: number, seed: number) => {
     let s = seed >>> 0;
@@ -65,6 +79,22 @@ describe('~b- wavelets', () => {
             }
         });
     }
+
+    it('art-science banks are exactly what their derivations produce', () => {
+        // the module is generated; a hand edit (or a changed derivation) would silently
+        // alter what existing .glic files decode to
+        const file = readFileSync(new URL('../artsciWavelets.ts', import.meta.url), 'utf8');
+        expect(file).toBe(renderArtsci());
+    });
+
+    it('art-science banks carry a concept note and have matching filter lengths', () => {
+        for (const w of Object.values(ARTSCI_WAVELETS)) {
+            expect(w.note.length, w.bank.name).toBeGreaterThan(80);
+            // the engine takes each direction's length from its low band
+            expect(w.bank.waveletDeCom.length, w.bank.name).toBe(w.bank.scalingDeCom.length);
+            expect(w.bank.waveletReCon.length, w.bank.name).toBe(w.bank.scalingReCon.length);
+        }
+    });
 
     it('survives the .glic header round trip', () => {
         const w = 16;
