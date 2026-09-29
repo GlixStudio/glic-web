@@ -7,7 +7,7 @@ import { ExportModal } from './ExportModal';
 import { ImageSizeModal, CanvasSizeModal } from './SizeModals';
 
 // Pattrn-style menu bar: File (project lifecycle, import/export), Image
-// (image and canvas size) and View (zoom / segmentation / chrome). Zoom state lives in the canvas viewer, so
+// (image and canvas size), Layer (Photoshop's arrange/merge commands) and View (zoom / segmentation / chrome). Zoom state lives in the canvas viewer, so
 // View items dispatch commands over the view bus.
 
 interface Item {
@@ -19,7 +19,7 @@ interface Item {
 }
 
 type Separator = 'sep';
-type MenuId = 'file' | 'image' | 'view';
+type MenuId = 'file' | 'image' | 'layer' | 'view';
 
 const MenuButton: React.FC<{
     id: MenuId;
@@ -88,6 +88,13 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         encodedFile,
         originalImage,
         layers,
+        activeLayerId,
+        duplicateLayer,
+        deleteLayer,
+        moveLayer,
+        mergeDown,
+        mergeVisible,
+        flatten,
         toast,
     } = useApp();
 
@@ -175,6 +182,51 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         { label: 'Canvas size…', disabled: !originalImage, onClick: () => setDialog('canvas-size') },
     ];
 
+    const activeIdx = layers.findIndex(l => l.id === activeLayerId);
+    const active = activeIdx >= 0 ? layers[activeIdx] : null;
+    const layerCmds = {
+        duplicate: () => active && duplicateLayer(active.id),
+        forward: () => active && moveLayer(active.id, 1),
+        backward: () => active && moveLayer(active.id, -1),
+        mergeDown: () => active && mergeDown(active.id),
+        mergeVisible,
+    };
+    const layerItems: (Item | Separator)[] = [
+        { label: 'Duplicate layer', hint: '⌘J', disabled: !active, onClick: layerCmds.duplicate },
+        { label: 'Delete layer', disabled: !active, onClick: () => active && deleteLayer(active.id) },
+        'sep',
+        { label: 'Bring forward', hint: '⌘]', disabled: !active || activeIdx === layers.length - 1, onClick: layerCmds.forward },
+        { label: 'Send backward', hint: '⌘[', disabled: !active || activeIdx === 0, onClick: layerCmds.backward },
+        'sep',
+        { label: activeIdx === 0 ? 'Merge down into Background' : 'Merge down', hint: '⌘E', disabled: !active, onClick: layerCmds.mergeDown },
+        { label: 'Merge visible', hint: '⇧⌘E', disabled: !layers.some(l => l.visible), onClick: mergeVisible },
+        { label: 'Flatten image', disabled: layers.length === 0, onClick: flatten },
+    ];
+
+    // Photoshop's layer shortcuts (⌘ on macOS, Ctrl elsewhere)
+    const layerCmdsRef = useRef(layerCmds);
+    useEffect(() => {
+        layerCmdsRef.current = layerCmds;
+    });
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
+            const c = layerCmdsRef.current;
+            const k = e.key.toLowerCase();
+            const run = (fn: () => unknown) => {
+                e.preventDefault();
+                fn();
+            };
+            if (k === 'j' && !e.shiftKey) run(c.duplicate);
+            else if (k === 'e') run(e.shiftKey ? c.mergeVisible : c.mergeDown);
+            else if (e.key === ']') run(c.forward);
+            else if (e.key === '[') run(c.backward);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
+
     const view = (cmd: ViewCommand): (() => void) => () => sendView(cmd);
     const viewItems: (Item | Separator)[] = [
         { label: 'Zoom in', onClick: view('zoom-in') },
@@ -191,6 +243,7 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         <div ref={rootRef} className="flex items-center gap-0.5">
             <MenuButton id="file" label="File" items={fileItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
             <MenuButton id="image" label="Image" items={imageItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
+            <MenuButton id="layer" label="Layer" items={layerItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
             <MenuButton id="view" label="View" items={viewItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
             <span className="ml-2 text-[11px] text-ink-2 truncate max-w-40" title={projectName}>
                 {projectName}
