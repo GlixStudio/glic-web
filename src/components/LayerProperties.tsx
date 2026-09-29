@@ -190,7 +190,7 @@ export const LayerProperties: React.FC = () => {
     if (!active) {
         return (
             <div className="border-t border-line p-2.5 text-[11px] text-ink-2 leading-relaxed">
-                <b className="text-ink">Background</b> is your imported image. ENCODE stacks glitch layers above it; add an
+                <b className="text-ink">Background</b> is your imported image. ENCODE creates Layer 1 above it, NEW LAYER stacks more; add an
                 adjustment layer (<span className="font-mono">◐</span> below the list) to post-process everything at once.
                 Click its lock to unlock it, then its eye to hide it
                 {backgroundVisible ? '' : ' - hidden now: layers composite over transparency, and PNG export keeps it'}.

@@ -3,8 +3,8 @@ import { startTour } from '../core/tour';
 import { Compass } from 'lucide-react';
 
 const SHORTCUTS: [string, string][] = [
-    ['E', 'Encode into a new layer above the active one'],
-    ['R', 'Re-encode the active layer in place'],
+    ['E', 'Encode into the active layer (Layer 1 on a fresh image)'],
+    ['R', 'Encode into a new layer on top'],
     ['U', 'Undo last encode'],
     ['S', 'Save processed image (PNG)'],
     ['G', 'Save .glic file'],
@@ -79,8 +79,8 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                                     reproducible experiments; each shows its idea under the picker
                                 </li>
                                 <li>
-                                    Photoshop-style layers: your image is the locked Background, each encode stacks a new
-                                    layer above the active one; masks, opacity, 20 blend modes, drag to reorder, merge
+                                    Photoshop-style layers over your image (the Background): E encodes into the active layer,
+                                    R stacks a new one; masks, opacity, 20 blend modes, drag to reorder, merge
                                 </li>
                                 <li>
                                     Non-destructive layer effects and adjustment layers: levels, hue/saturation, posterize,

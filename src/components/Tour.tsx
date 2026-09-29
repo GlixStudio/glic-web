@@ -36,7 +36,7 @@ const STEPS: TourStep[] = [
     {
         target: 'encode',
         title: 'Encode',
-        body: 'Press ENCODE (or E) to run the codec. Every encode stacks a new layer above your image - Layer 1, Layer 2, … - so nothing is ever final.',
+        body: 'Press ENCODE (or E) to run the codec. The first encode lands on Layer 1 above your image; press E again to re-run it, or R to stack a new layer - nothing is ever final.',
     },
     {
         target: 'selection-tools',
