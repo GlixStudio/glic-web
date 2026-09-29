@@ -15,6 +15,7 @@ export const ActionBar: React.FC = () => {
         encodeNow,
         newLayerEncode,
         iterate,
+        iterateLayers,
         undo,
         cancel,
         importGlic,
@@ -122,33 +123,45 @@ export const ActionBar: React.FC = () => {
                 </Tooltip>
             </div>
 
-            <div className="flex gap-2">
-                <Tooltip help={HELP.iterate}>
-                <button
-                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
-                        !originalImage || isProcessing
-                            ? 'text-ink/30 bg-cream-3 border border-ink/20 cursor-not-allowed'
-                            : 'text-ink bg-cream-2 hover:bg-white border border-ink'
-                    }`}
-                    onClick={() => iterate(iterateCount)}
-                    disabled={!originalImage || isProcessing}
-                >
+            <div className="flex gap-2 items-stretch">
+                <label className="flex items-center gap-1 text-xs font-medium text-ink" title="Iteration count">
                     <Repeat className="w-3 h-3" />
-                    Iterate ×
-                </button>
-                </Tooltip>
-                <select
-                    value={iterateCount}
-                    onChange={e => setIterateCount(parseInt(e.target.value))}
-                    className="w-14 bg-cream-2 border border-ink text-ink text-xs rounded-lg px-1 focus:outline-none"
-                    title="Iteration count"
-                >
-                    {[2, 3, 5, 10, 20].map(n => (
-                        <option key={n} value={n}>
-                            {n}
-                        </option>
-                    ))}
-                </select>
+                    <span className="sr-only">Iterations</span>×
+                    <select
+                        value={iterateCount}
+                        onChange={e => setIterateCount(parseInt(e.target.value))}
+                        className="w-12 h-full bg-cream-2 border border-ink text-ink text-xs rounded-lg px-1 focus:outline-none"
+                    >
+                        {[2, 3, 5, 10, 20].map(n => (
+                            <option key={n} value={n}>
+                                {n}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+                {(
+                    [
+                        { help: HELP.iterate, label: '→ 1 layer', run: iterate },
+                        { help: HELP.iterateLayers, label: `→ ${iterateCount} layers`, run: iterateLayers },
+                    ] as const
+                ).map(b => (
+                    <Tooltip key={b.label} help={b.help}>
+                        <button
+                            className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
+                                !originalImage || isProcessing
+                                    ? 'text-ink/30 bg-cream-3 border border-ink/20 cursor-not-allowed'
+                                    : 'text-ink bg-cream-2 hover:bg-white border border-ink'
+                            }`}
+                            onClick={() => b.run(iterateCount)}
+                            disabled={!originalImage || isProcessing}
+                        >
+                            {b.label}
+                        </button>
+                    </Tooltip>
+                ))}
+            </div>
+
+            <div className="flex gap-2">
                 <Tooltip help={HELP.undo}>
                 <button
                     className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${

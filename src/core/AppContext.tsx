@@ -148,6 +148,8 @@ interface AppState {
     newLayerEncode: () => Promise<void>;
     /** encode passes feeding on each other; the final pass lands like ENCODE (one layer) */
     iterate: (times: number) => Promise<void>;
+    /** encode passes feeding on each other, every pass kept as its own new layer above the active one */
+    iterateLayers: (times: number) => Promise<void>;
     undo: () => void;
     cancel: () => void;
     importGlic: (bytes: Uint8Array, overrideHeader: boolean) => Promise<void>;
@@ -743,6 +745,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         [replaceTarget, memoryFull, inputFor, commitEncode, toast]
     );
 
+    const iterateLayers = useCallback(
+        async (times: number) => {
+            const source = originalRef.current;
+            if (!source || glicEngine.isBusy) return;
+            const anchorId = activeIdRef.current;
+            const made: GlitchLayer[] = [];
+            setIsProcessing(true);
+            setProgress(0);
+            try {
+                let input = compositeBelow(source, insertionIndex(anchorId));
+                for (let i = 0; i < times; i++) {
+                    if (memoryFull(made)) break;
+                    const res = await glicEngine.encode(input, configRef.current, (_pc, overall) => {
+                        setProgress((i + overall) / times);
+                    });
+                    setResolved(res.resolvedConfig);
+                    setLastSegments(res.segments);
+                    const layer = encodedLayer(nextLayerName([...layersRef.current, ...made]), res.preview, res.file, res.resolvedConfig);
+                    made.push(layer);
+                    // each pass feeds on what the stack now shows (its mask included)
+                    input = compositeLayers(input, [layer]);
+                }
+            } catch (e) {
+                if ((e as Error).message !== 'cancelled') toast('error', `Iterate failed: ${(e as Error).message}`);
+            } finally {
+                // passes finished before a cancel or error are kept, in order, above the anchor
+                if (made.length) {
+                    snapshot();
+                    const next = [...layersRef.current];
+                    next.splice(insertionIndex(anchorId), 0, ...made);
+                    setLayers(next);
+                    setActiveLayerIdState(made[made.length - 1].id);
+                }
+                setIsProcessing(false);
+                setProgress(null);
+            }
+        },
+        [compositeBelow, insertionIndex, memoryFull, encodedLayer, snapshot, toast]
+    );
+
     const cancel = useCallback(() => {
         glicEngine.cancel();
         setIsProcessing(false);
@@ -1138,6 +1180,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             encodeNow,
             newLayerEncode,
             iterate,
+            iterateLayers,
             undo,
             cancel,
             importGlic,
@@ -1205,6 +1248,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             encodeNow,
             newLayerEncode,
             iterate,
+            iterateLayers,
             undo,
             cancel,
             importGlic,

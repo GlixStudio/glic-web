@@ -90,8 +90,12 @@ export const HELP = {
         shortcut: 'R',
     },
     iterate: {
-        title: 'Iterate',
-        body: 'Feeds the encoder its own output this many times in a row and lands the final result like ENCODE - in the active layer. Compound rot in one click, one layer.',
+        title: 'Iterate → 1 layer',
+        body: 'Feeds the encoder its own output this many times in a row and lands only the final result, like ENCODE - in the active layer. Compound rot in one click, one layer.',
+    },
+    iterateLayers: {
+        title: 'Iterate → every pass',
+        body: 'The same repeated encoding, but every pass is kept as its own new layer above the active one - frames of compound rot you can hide, fade, blend or delete. Cancelling keeps the passes already finished.',
     },
     undo: {
         title: 'Undo',
