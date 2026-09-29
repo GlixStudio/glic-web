@@ -5,11 +5,11 @@ GLIC Web is a web-based vibe coded port of the **GLIC** (GLitch Image Codec) ima
 ## Features
 
 - All 67 original JWave wavelets, bit-faithful to desktop GLIC (coefficients extracted from the exact JWave.jar the original ships with)
-- 15 extra `~b-` wavelets of our own (reverse biorthogonals, the 4-tap orthogonal lattice family, rotors, splines, sinc, Morlet, noise, slant) - ids 68+, not decodable by desktop GLIC
+- 38 extra `~b-` wavelets of our own, ids 68+, not decodable by desktop GLIC: 15 hand-made (reverse biorthogonals, the 4-tap orthogonal lattice family, rotors, splines, sinc, Morlet, noise, slant) and 23 in the [art-science family](#art-science-wavelets-and-presets), each derived from an idea
 - `.glic` files byte-compatible with desktop GLIC — encode here, decode there, databend in a hex editor, and re-import glitched files
 - Full decoder, including GLIC's "override header" glitch-decode trick
 - 16 color spaces, 18 block predictors, quad-tree segmentation, RAW/PACKED/RLE encodings
-- 144 bundled community presets, 14 `~b-` presets built on the new wavelets, and custom presets with JSON export/import
+- 144 bundled community presets, 36 `~b-` presets built on the new wavelets (22 of them art-science experiments with their idea shown in the app), and custom presets with JSON export/import
 - Parallel encoding across three worker threads with live progress and cancel
 - Photoshop-style layer stack: the imported image is a locked Background and every encode (E) stacks a new layer above the active one — Layer 1, Layer 2, … — each glitching what is beneath it; R re-encodes the active layer in place, and Iterate lands every pass on its own layer. Each layer has its own mask, opacity, and blend mode (all 20 Photoshop modes, including Color Dodge/Burn, Soft/Hard/Linear Light, Exclusion, Subtract, Divide, Hue, Saturation, Color, Luminosity), applied non-destructively at composite time — retune a glitch after encoding without re-running the codec
 - Layer tools: drag to reorder, Alt-click an eye to solo, merge down (⌘E), merge visible (⇧⌘E), duplicate (⌘J), arrange (⌘[ / ⌘]), invert mask, and a Layer menu
@@ -26,6 +26,30 @@ GLIC Web is a web-based vibe coded port of the **GLIC** (GLitch Image Codec) ima
 - Tilesets (8–256 px), spritesheets arranged by dominant color, brightness, saturation, shape or similarity with a TexturePacker-style JSON manifest of per-tile color and shape values (for pattrn.glix.studio), and GIF/WebM animation export
 - Projects: File → Save keeps the whole piece (source, layer stack with masks, effects and streams, codec settings) in your browser via IndexedDB — reopen anytime from File → Open; layers are bounded by a memory budget, not a fixed count
 - Built-in help: hover any control for a plain-language explanation, plus a first-run guided tour (restartable from Help & About)
+
+## Art-science wavelets and presets
+
+Wavelets 83–105 are not tuned by eye: each is **computed from a structure in the world** by [`scripts/wavelab/artsci.ts`](scripts/wavelab/artsci.ts), which is the score, so anyone can re-perform it. The app shows each one's idea under the wavelet and preset pickers.
+
+- **Physics:** the golden angle vs 1/α (Pauli's 137), two T gates making an S, a basis turned by the CHSH angle, conjugate Gaussians (uncertainty), a Fibonacci quasicrystal
+- **Biology:** the first 16 nt of human insulin as electron-ion interaction potentials against their reverse complement, a Hodgkin-Huxley spike, the α-helix's 3.6 residues per turn, and two lattices bred by a seeded evolution strategy (the fittest and, with fitness inverted, the least fit)
+- **Music:** the circle of fifths in 12-TET vs pure 3:2 fifths (the Pythagorean comma), Coltrane's major-third cycle, the row of Berg's Violin Concerto, tritone substitution, Messiaen's mode 2, the crab canon of Bach's Royal Theme
+- **Philosophy / topology:** Möbius (details rebuilt with their orientation reversed), difference without repetition, Derrida's différance, call and response
+- **Generative systems:** Rule 30's centre column, the logistic map at the Feigenbaum point
+
+There are two kinds of bank. **Lawful** ones are orthogonal lattices (perfect reconstruction). They only show their character once detail is thrown away (the Compression slider), and several are built so that a real structure *almost* closes the lattice's 45° law. The leftover angle is the artwork: the Pythagorean comma floods an image that 12-TET leaves calm. **Broken** ones make analysis and synthesis disagree on purpose, so they glitch at any setting.
+
+The 22 art-science presets are experiments. None use RANDOM, so results re-perform exactly, and A/B pairs isolate one variable: `~b- well tempered` / `~b- wolf fifth`, `~b- selection pressure` / `~b- maladaptation`.
+
+Regenerate or verify the family (the test suite also fails if the generated module drifts from its derivation):
+
+```sh
+npx vite-node scripts/wavelab/gen-artsci.ts           # rewrite src/core/artsciWavelets.ts
+npx vite-node scripts/wavelab/gen-artsci.ts --check   # verify it matches
+npx vite-node scripts/wavelab/wavelets.ts out 83 94   # contact sheets of chosen ids
+```
+
+Wavelet ids are part of the `.glic` format: new ideas are appended, existing ones are never re-derived.
 
 ## Links
 

@@ -70,8 +70,13 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                             <ul className="list-disc list-inside space-y-1 ml-2 text-ink-2">
                                 <li>All 67 original JWave wavelets, bit-faithful to desktop GLIC</li>
                                 <li>
-                                    15 extra <code>~b-</code> wavelets and 14 <code>~b-</code> presets made for GLIC Web (desktop GLIC
+                                    38 extra <code>~b-</code> wavelets and 36 <code>~b-</code> presets made for GLIC Web (desktop GLIC
                                     cannot decode files that use them)
+                                </li>
+                                <li>
+                                    An art-science family derived from ideas - the Pythagorean comma, Hodgkin-Huxley spikes, insulin
+                                    DNA, Berg's tone row, CHSH angles, Rule 30, evolved wavelets - and presets written as
+                                    reproducible experiments; each shows its idea under the picker
                                 </li>
                                 <li>
                                     Photoshop-style layers: your image is the locked Background, each encode stacks a new
