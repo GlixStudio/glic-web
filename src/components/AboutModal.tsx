@@ -15,7 +15,11 @@ const SHORTCUTS: [string, string][] = [
     ['Alt-click eye', 'Show only that layer (again: show all)'],
     ['C (hold)', 'Compare with source image'],
     ['F', 'Fit image / 100% zoom toggle'],
-    ['V', 'Move / pan tool'],
+    ['V', 'Move tool: drag the active layer, corners scale, knob rotates'],
+    ['Arrows / Shift+arrows', 'Nudge the layer 1 px / 10 px (Move tool)'],
+    ['H', 'Hand (pan) tool'],
+    ['Delete', 'Remove the selected area from the active layer'],
+    ['⌘J / ⇧⌘J (with selection)', 'Layer via copy / via cut'],
     ['M', 'Rect marquee (again: ellipse)'],
     ['L', 'Lasso'],
     ['W', 'Magic wand (again: color / object mode)'],
@@ -117,12 +121,12 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                                     files; Export… for print-ready files; quick PNG and .glic export
                                 </li>
                                 <li>
-                                    <strong className="text-ink">Image</strong> - Image size (scale everything) and Canvas size
-                                    (crop or extend around an anchor)
+                                    <strong className="text-ink">Image</strong> - Image size (scale everything), Canvas size
+                                    (crop or extend around an anchor), rotate 90°/180° and flip the canvas
                                 </li>
                                 <li>
-                                    <strong className="text-ink">Layer</strong> - duplicate, delete, arrange, merge down, merge
-                                    visible, flatten
+                                    <strong className="text-ink">Layer</strong> - duplicate, delete, layer via copy / cut,
+                                    delete selected area, flip, reset transform, arrange, merge down, merge visible, flatten
                                 </li>
                                 <li>
                                     <strong className="text-ink">View</strong> - zoom, fit, segmentation view, show or hide the
