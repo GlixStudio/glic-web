@@ -4,16 +4,21 @@
 // Everything stays in the browser.
 
 import type { CodecConfig } from './Codec';
-import type { BlendMode } from './layers';
+import type { BlendMode, LayerKind } from './layers';
+import type { Effect } from './effects';
 
 export interface StoredLayer {
+    /** absent in projects saved before adjustment layers (= 'pixel') */
+    kind?: LayerKind;
     name: string;
     visible: boolean;
     opacity: number;
     blendMode: BlendMode;
     mask: Uint8Array | null;
-    /** PNG-compressed full-frame result */
-    result: Blob;
+    /** PNG-compressed full-frame result; null for adjustment layers */
+    result: Blob | null;
+    /** absent in projects saved before layer effects */
+    effects?: Effect[];
     file: Uint8Array | null;
     resolved: CodecConfig | null;
     thumb: string | null;

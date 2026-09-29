@@ -1,6 +1,7 @@
 // Small canvas/file helpers shared by the UI.
 
 import { filtersToCss, type ImageFilters } from './filters';
+import { layerRender, type GlitchLayer } from './layers';
 
 export const fileToImageData = (file: File): Promise<ImageData> =>
     new Promise((resolve, reject) => {
@@ -91,6 +92,12 @@ export const imageDataToThumbnail = (
     ctx.fillRect(0, 0, tw, th);
     ctx.drawImage(imageDataToCanvas(shown), 0, 0, tw, th);
     return out.toDataURL();
+};
+
+/** a layer's thumbnail as it renders (effects included); null for adjustment layers */
+export const layerThumbnail = (layer: Pick<GlitchLayer, 'kind' | 'result' | 'effects'>, mask: Uint8ClampedArray | null): string | null => {
+    const render = layerRender(layer as GlitchLayer);
+    return render ? imageDataToThumbnail(render, mask) : null;
 };
 
 export const timestampedFilename = (prefix: string, extension: string) => {

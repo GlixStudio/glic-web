@@ -5,7 +5,7 @@ import { imageDataToCanvas, downloadBlob, timestampedFilename } from '../core/im
 import { maskToImageData } from '../core/selection';
 import { resampleImage, type ResampleMethod } from '../core/resize';
 import { setPngDpi, setJpegDpi, maskBounds, cropImage, applyMaskAlpha, printSize } from '../core/exportImage';
-import { compositeLayers } from '../core/layers';
+import { compositeLayers, layerRender } from '../core/layers';
 import { HELP } from '../core/help';
 import { Modal, ModalButton, Segmented } from './controls/Modal';
 import { Select } from './controls/Select';
@@ -100,7 +100,8 @@ export const ExportModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     const tag = `${String(i + 1).padStart(2, '0')}-${l.name.replace(/[^\w-]+/g, '_')}`;
                     // the layer on its own over the source, and its raw full-frame render
                     zip.file(`layers/${tag}.png`, await encode(render(compositeLayers(src, [{ ...l, visible: true }]))));
-                    zip.file(`layers/${tag}-raw.png`, await encode(render(l.result)));
+                    const raw = layerRender(l);
+                    if (raw) zip.file(`layers/${tag}-raw.png`, await encode(render(raw)));
                     if (l.mask) zip.file(`layers/${tag}-mask.png`, await encode(render(maskToImageData(l.mask, src.width, src.height), true)));
                 }
                 downloadBlob(await zip.generateAsync({ type: 'blob' }), timestampedFilename(`${base}-layers`, 'zip'));
@@ -108,8 +109,10 @@ export const ExportModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 let img: ImageData;
                 let isMask = false;
                 if (content === 'composite') img = processed ?? src;
-                else if (content === 'layer') img = layers.find(l => l.id === activeLayerId)?.result ?? src;
-                else if (content === 'mask') {
+                else if (content === 'layer') {
+                    const l = layers.find(x => x.id === activeLayerId);
+                    img = (l && layerRender(l)) ?? src;
+                } else if (content === 'mask') {
                     img = maskToImageData(selection!, src.width, src.height);
                     isMask = true;
                 } else img = src;

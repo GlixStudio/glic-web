@@ -5,6 +5,7 @@
 
 import type { Mask } from './selection';
 import type { CodecConfig } from './Codec';
+import { applyEffects, effectsKey, type Effect } from './effects';
 
 export type BlendMode =
     | 'normal'
@@ -52,16 +53,26 @@ export const BLEND_MODES: { label: string; value: BlendMode; group?: true }[] = 
     { label: 'Luminosity', value: 'luminosity' },
 ];
 
+/**
+ * pixel: carries its own full-frame render (an encode, a decode, a merge).
+ * adjustment: carries no pixels - its effects run on the composite beneath it,
+ * like a Photoshop adjustment layer.
+ */
+export type LayerKind = 'pixel' | 'adjustment';
+
 export interface GlitchLayer {
     id: string;
+    kind: LayerKind;
     name: string;
     visible: boolean;
     opacity: number; // 0..100
     blendMode: BlendMode;
     /** applied at composite time; null = whole frame */
     mask: Mask | null;
-    /** full-frame glitch render */
-    result: ImageData;
+    /** full-frame glitch render; null for adjustment layers */
+    result: ImageData | null;
+    /** non-destructive effect stack, applied before blending (top to bottom) */
+    effects: Effect[];
     /** the .glic stream this layer's encode produced */
     file: Uint8Array | null;
     resolved: CodecConfig | null;
@@ -78,7 +89,7 @@ export const layerUsageBytes = (layers: GlitchLayer[]): number =>
     layers.reduce(
         (sum, l) =>
             sum +
-            l.result.data.byteLength +
+            (l.result ? l.result.data.byteLength : 0) +
             (l.mask ? l.mask.byteLength : 0) +
             (l.file ? l.file.byteLength : 0),
         0
@@ -103,25 +114,69 @@ export const canAddLayer = (layers: GlitchLayer[], w: number, h: number): LayerB
 
 let layerCounter = 0;
 
+const newLayerId = () =>
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `layer-${++layerCounter}-${Date.now()}`;
+
 export const makeLayer = (
     name: string,
     result: ImageData,
-    init: Partial<Pick<GlitchLayer, 'mask' | 'file' | 'resolved' | 'thumb'>> = {}
+    init: Partial<Pick<GlitchLayer, 'mask' | 'file' | 'resolved' | 'thumb' | 'effects'>> = {}
 ): GlitchLayer => ({
-    id:
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto
-            ? crypto.randomUUID()
-            : `layer-${++layerCounter}-${Date.now()}`,
+    id: newLayerId(),
+    kind: 'pixel',
     name,
     visible: true,
     opacity: 100,
     blendMode: 'normal',
     mask: init.mask ?? null,
     result,
+    effects: init.effects ?? [],
     file: init.file ?? null,
     resolved: init.resolved ?? null,
     thumb: init.thumb ?? null,
 });
+
+export const makeAdjustmentLayer = (name: string, effects: Effect[], mask: Mask | null = null): GlitchLayer => ({
+    id: newLayerId(),
+    kind: 'adjustment',
+    name,
+    visible: true,
+    opacity: 100,
+    blendMode: 'normal',
+    mask,
+    result: null,
+    effects,
+    file: null,
+    resolved: null,
+    thumb: null,
+});
+
+/** a copy with a fresh id (shares the immutable pixel/mask/stream buffers) */
+export const cloneLayer = (src: GlitchLayer, name: string): GlitchLayer => ({
+    ...src,
+    id: newLayerId(),
+    name,
+    effects: src.effects.map(e => ({ ...e, params: { ...e.params } })),
+});
+
+// A pixel layer's effected render only changes when its pixels or its effect
+// settings do, so it is cached per render; opacity/blend/mask tweaks and edits
+// to other layers recomposite without re-running blurs or pixel sorts.
+const renderCache = new WeakMap<ImageData, { key: string; out: ImageData }>();
+
+/** a pixel layer's result with its effect stack applied (cached) */
+export const layerRender = (layer: GlitchLayer): ImageData | null => {
+    if (!layer.result) return null;
+    if (!layer.effects.some(e => e.enabled)) return layer.result;
+    const key = effectsKey(layer.effects);
+    const hit = renderCache.get(layer.result);
+    if (hit && hit.key === key) return hit.out;
+    const out = applyEffects(layer.result, layer.effects);
+    renderCache.set(layer.result, { key, out });
+    return out;
+};
 
 /** blend(s = layer value, b = base/under value), both 0..255 */
 const blendChannel = (mode: BlendMode): ((s: number, b: number) => number) => {
@@ -225,7 +280,9 @@ const blendPixel = (mode: BlendMode): RGBBlend | null => {
 
 /**
  * Composites the layer stack (bottom -> top) over the source image.
- * Per pixel: out = lerp(under, blend(mode, layer, under), mask/255 * opacity/100).
+ * Per pixel: out = lerp(under, blend(mode, layer, under), mask/255 * opacity/100),
+ * where `layer` is a pixel layer's effected render, or for an adjustment layer
+ * its effects applied to everything composited so far.
  * Layers that are hidden, fully transparent, or of mismatched dimensions are skipped.
  */
 export const compositeLayers = (source: ImageData, layers: GlitchLayer[]): ImageData => {
@@ -236,9 +293,16 @@ export const compositeLayers = (source: ImageData, layers: GlitchLayer[]): Image
 
     for (const layer of layers) {
         if (!layer.visible || layer.opacity <= 0) continue;
-        if (layer.result.width !== w || layer.result.height !== h) continue;
+        let render: ImageData | null;
+        if (layer.kind === 'adjustment') {
+            if (!layer.effects.some(e => e.enabled)) continue;
+            render = applyEffects(new ImageData(out, w, h), layer.effects);
+        } else {
+            render = layerRender(layer);
+        }
+        if (!render || render.width !== w || render.height !== h) continue;
         const mask = layer.mask && layer.mask.length === n ? layer.mask : null;
-        const g = layer.result.data;
+        const g = render.data;
         const m0 = layer.opacity / 100;
 
         // fast path: full-frame normal at 100%

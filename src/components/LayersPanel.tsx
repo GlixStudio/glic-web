@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useApp } from '../core/AppContext';
 import { BLEND_MODES, type GlitchLayer } from '../core/layers';
-import { imageDataToThumbnail } from '../core/imageio';
+import { layerThumbnail } from '../core/imageio';
 import { HELP } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
 import {
@@ -266,7 +266,7 @@ export const LayersPanel: React.FC = () => {
                             onClick={() =>
                                 updateLayer(active.id, {
                                     mask: null,
-                                    thumb: imageDataToThumbnail(active.result, null),
+                                    thumb: layerThumbnail(active, null),
                                 })
                             }
                             disabled={!active.mask}

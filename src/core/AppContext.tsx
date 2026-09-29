@@ -12,9 +12,10 @@ import {
     type Anchor,
     type ResampleMethod,
 } from './resize';
-import { compositeLayers, makeLayer, canAddLayer, type GlitchLayer } from './layers';
+import { compositeLayers, makeLayer, makeAdjustmentLayer, cloneLayer, canAddLayer, type GlitchLayer } from './layers';
 import {
     imageDataToThumbnail,
+    layerThumbnail,
     imageDataToPngBlob,
     blobToImageData,
     imageDataToCanvas,
@@ -313,24 +314,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const ls = layersRef.current;
             const i = ls.findIndex(l => l.id === id);
             if (i < 0) return;
-            const budget = canAddLayer(ls, ls[i].result.width, ls[i].result.height);
+            const src = ls[i];
+            const img = originalRef.current;
+            const budget = src.result && img ? canAddLayer(ls, img.width, img.height) : { ok: true, usedMB: 0, budgetMB: 0 };
             if (!budget.ok) {
                 toast('error', `Layer memory is full (${budget.usedMB} of ${budget.budgetMB} MB) - flatten or delete layers to continue`);
                 return;
             }
             snapshot();
-            const src = ls[i];
-            const copy: GlitchLayer = {
-                ...makeLayer(`${src.name} copy`, src.result, {
-                    mask: src.mask,
-                    file: src.file,
-                    resolved: src.resolved,
-                    thumb: src.thumb,
-                }),
-                visible: src.visible,
-                opacity: src.opacity,
-                blendMode: src.blendMode,
-            };
+            const copy = cloneLayer(src, `${src.name} copy`);
             const next = [...ls];
             next.splice(i + 1, 0, copy);
             setLayers(next);
@@ -370,7 +362,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const layer = layersRef.current.find(l => l.id === id);
             if (!layer) return;
             const mask = selectionRef.current ? selectionRef.current.slice() : null;
-            updateLayer(id, { mask, thumb: imageDataToThumbnail(layer.result, mask) });
+            updateLayer(id, { mask, thumb: layerThumbnail(layer, mask) });
         },
         [updateLayer]
     );
@@ -546,12 +538,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
                 const storedLayers: StoredLayer[] = await Promise.all(
                     ls.map(async l => ({
+                        kind: l.kind,
                         name: l.name,
                         visible: l.visible,
                         opacity: l.opacity,
                         blendMode: l.blendMode,
                         mask: l.mask ? new Uint8Array(l.mask) : null,
-                        result: await imageDataToPngBlob(l.result),
+                        result: l.result ? await imageDataToPngBlob(l.result) : null,
+                        effects: l.effects,
                         file: l.file,
                         resolved: l.resolved,
                         thumb: l.thumb,
@@ -589,17 +583,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (!rec) throw new Error('project not found');
                 const source = await blobToImageData(rec.source);
                 const restored: GlitchLayer[] = await Promise.all(
-                    rec.layers.map(async sl => ({
-                        ...makeLayer(sl.name, await blobToImageData(sl.result), {
-                            mask: sl.mask ? new Uint8ClampedArray(sl.mask) : null,
-                            file: sl.file,
-                            resolved: sl.resolved ? Object.assign(new CodecConfig(), sl.resolved) : null,
-                            thumb: sl.thumb,
-                        }),
-                        visible: sl.visible,
-                        opacity: sl.opacity,
-                        blendMode: sl.blendMode,
-                    }))
+                    rec.layers.map(async sl => {
+                        const mask = sl.mask ? new Uint8ClampedArray(sl.mask) : null;
+                        // projects saved before effects/adjustment layers existed lack these fields
+                        const effects = sl.effects ?? [];
+                        const base =
+                            sl.kind === 'adjustment' || !sl.result
+                                ? makeAdjustmentLayer(sl.name, effects, mask)
+                                : makeLayer(sl.name, await blobToImageData(sl.result), {
+                                      mask,
+                                      effects,
+                                      file: sl.file,
+                                      resolved: sl.resolved ? Object.assign(new CodecConfig(), sl.resolved) : null,
+                                      thumb: sl.thumb,
+                                  });
+                        return { ...base, visible: sl.visible, opacity: sl.opacity, blendMode: sl.blendMode };
+                    })
                 );
                 setOriginalImage(source);
                 setLayers(restored);
@@ -781,7 +780,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const mask = maskAtImageSize(id);
             const layer = layersRef.current.find(l => l.id === activeIdRef.current);
             if (!mask || !layer) return;
-            updateLayer(layer.id, { mask, thumb: imageDataToThumbnail(layer.result, mask) });
+            updateLayer(layer.id, { mask, thumb: layerThumbnail(layer, mask) });
         },
         [maskAtImageSize, updateLayer]
     );
@@ -799,10 +798,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const hadStreams = ls.some(l => l.file);
             setLayers(
                 ls.map(l => {
-                    const result = img(l.result);
-                    const m = l.mask ? mask(l.mask, l.result.width, l.result.height) : null;
+                    const result = l.result ? img(l.result) : null;
+                    const m = l.mask ? mask(l.mask, source.width, source.height) : null;
                     // a .glic stream describes the old pixel grid; it can no longer be saved as-is
-                    return { ...l, result, mask: m, file: null, thumb: imageDataToThumbnail(result, m) };
+                    const next = { ...l, result, mask: m, file: null };
+                    return { ...next, thumb: layerThumbnail(next, m) };
                 })
             );
             setOriginalImage(next);

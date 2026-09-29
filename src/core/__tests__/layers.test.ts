@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { compositeLayers, makeLayer, type BlendMode } from '../layers';
+import { compositeLayers, makeLayer, makeAdjustmentLayer, layerRender, cloneLayer, type BlendMode } from '../layers';
+import { makeEffect } from '../effects';
 import { compositeWithMask, rectMask, feather } from '../selection';
 
 const img = (w: number, h: number, rgba: [number, number, number, number]): ImageData => {
@@ -176,5 +177,57 @@ describe('layer memory budget', () => {
         big.file = { byteLength: LAYER_MEMORY_BUDGET } as unknown as Uint8Array;
         expect(canAddLayer([big], 1024, 1024).ok).toBe(false);
         expect(canAddLayer([big], 1024, 1024).usedMB).toBeGreaterThan(0);
+    });
+});
+
+describe('layer effects', () => {
+    it('pixel layer effects apply before blending', () => {
+        const source = img(2, 2, [0, 0, 0, 255]);
+        const layer = makeLayer('L', img(2, 2, [10, 20, 30, 255]), { effects: [makeEffect('invert')] });
+        expect(px(compositeLayers(source, [layer]))).toEqual([245, 235, 225, 255]);
+    });
+
+    it('the effected render is cached until the effects change', () => {
+        const layer = makeLayer('L', img(2, 2, [10, 20, 30, 255]), { effects: [makeEffect('invert')] });
+        const a = layerRender(layer);
+        expect(layerRender({ ...layer, opacity: 40 })).toBe(a);
+        const tweaked = { ...layer, effects: [makeEffect('posterize', { levels: 2 })] };
+        expect(layerRender(tweaked)).not.toBe(a);
+        expect(layerRender(makeLayer('plain', layer.result!))).toBe(layer.result);
+    });
+
+    it('adjustment layers affect everything below, not above', () => {
+        const source = img(1, 1, [10, 10, 10, 255]);
+        const adj = makeAdjustmentLayer('Invert', [makeEffect('invert')]);
+        expect(px(compositeLayers(source, [adj]))).toEqual([245, 245, 245, 255]);
+        const below = makeLayer('below', img(1, 1, [100, 0, 0, 255]));
+        expect(px(compositeLayers(source, [below, adj]))).toEqual([155, 255, 255, 255]);
+        const above = makeLayer('above', img(1, 1, [7, 7, 7, 255]));
+        expect(px(compositeLayers(source, [below, adj, above]))).toEqual([7, 7, 7, 255]);
+    });
+
+    it('adjustment layers honor mask and opacity', () => {
+        const source = img(2, 1, [100, 100, 100, 255]);
+        const adj = makeAdjustmentLayer('Invert', [makeEffect('invert')], new Uint8ClampedArray([255, 0]));
+        adj.opacity = 50;
+        const out = compositeLayers(source, [adj]);
+        expect(px(out, 0)[0]).toBe(128); // 100 -> 155 at 50%
+        expect(px(out, 1)[0]).toBe(100);
+    });
+
+    it('an adjustment layer with no enabled effects is a no-op', () => {
+        const source = img(1, 1, [1, 2, 3, 255]);
+        const fx = makeEffect('invert');
+        fx.enabled = false;
+        expect(px(compositeLayers(source, [makeAdjustmentLayer('A', [fx])]))).toEqual([1, 2, 3, 255]);
+    });
+
+    it('cloneLayer gets a new id and an independent effect stack', () => {
+        const layer = makeLayer('L', img(1, 1, [0, 0, 0, 255]), { effects: [makeEffect('blur')] });
+        const copy = cloneLayer(layer, 'L copy');
+        expect(copy.id).not.toBe(layer.id);
+        copy.effects[0].params.radius = 9;
+        expect(layer.effects[0].params.radius).toBe(2);
+        expect(copy.result).toBe(layer.result);
     });
 });
