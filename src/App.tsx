@@ -9,6 +9,7 @@ import { MenuBar } from './components/MenuBar';
 import { MaskImportHost } from './components/MaskImportModal';
 import { IncomingImageHost } from './components/IncomingImageHost';
 import { PhoneEncodeButton } from './components/PhoneEncodeButton';
+import { MobileNotice } from './components/MobileNotice';
 import { isPhoneWidth } from './core/viewport';
 import { PanelLeft, CircleHelp } from 'lucide-react';
 
@@ -74,6 +75,7 @@ function App() {
                 <MaskImportHost />
                 <IncomingImageHost />
                 <AboutModal open={showAbout} onClose={() => setShowAbout(false)} />
+                <MobileNotice />
             </div>
         </AppProvider>
     );
