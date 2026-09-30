@@ -447,9 +447,37 @@ export const CanvasViewer: React.FC = () => {
 
     const usingPan = (e: React.PointerEvent) => tool === 'hand' || spaceHeld || e.button === 1;
 
+    // --- touch: two fingers pinch-zoom and pan, whatever the tool ---
+
+    const touches = useRef(new Map<number, { x: number; y: number }>());
+    const pinch = useRef<{ dist: number; zoom: number; mid: { x: number; y: number }; pan: { x: number; y: number } } | null>(null);
+    const touchPair = () => {
+        const [a, b] = [...touches.current.values()];
+        return { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+    };
+    /** a second finger turns whatever the first one started into a pinch */
+    const beginPinch = () => {
+        gesture.current = null;
+        xform.current = null;
+        panState.current = null;
+        setXforming(false);
+        setPanning(false);
+        setDraftTick(t => t + 1);
+        const { dist, mid } = touchPair();
+        pinch.current = { dist, zoom: scale, mid, pan };
+    };
+
     const onPointerDown = (e: React.PointerEvent) => {
         if (!displayed) return;
         (e.target as Element).setPointerCapture(e.pointerId);
+        if (e.pointerType === 'touch') {
+            touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (touches.current.size === 2) {
+                beginPinch();
+                return;
+            }
+            if (touches.current.size > 2 || pinch.current) return;
+        }
         if (usingPan(e)) {
             panState.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
             setPanning(true);
@@ -483,6 +511,18 @@ export const CanvasViewer: React.FC = () => {
     };
 
     const onPointerMove = (e: React.PointerEvent) => {
+        if (e.pointerType === 'touch' && touches.current.has(e.pointerId)) {
+            touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            const p0 = pinch.current;
+            if (p0 && touches.current.size >= 2) {
+                const { dist, mid } = touchPair();
+                const z = Math.min(32, Math.max(0.05, p0.zoom * (dist / p0.dist)));
+                setZoom(z);
+                setPan(clampPan({ x: p0.pan.x + mid.x - p0.mid.x, y: p0.pan.y + mid.y - p0.mid.y }, z));
+                return;
+            }
+            if (p0) return;
+        }
         if (tool === 'brush') {
             hoverScreen.current = { x: e.clientX, y: e.clientY };
             if (!gesture.current) setDraftTick(t => t + 1);
@@ -514,7 +554,15 @@ export const CanvasViewer: React.FC = () => {
         setDraftTick(t => t + 1);
     };
 
-    const onPointerUp = () => {
+    const onPointerUp = (e?: React.PointerEvent) => {
+        if (e?.pointerType === 'touch') {
+            touches.current.delete(e.pointerId);
+            if (pinch.current) {
+                // the pinch ends when the last finger lifts; nothing else fires
+                if (touches.current.size === 0) pinch.current = null;
+                return;
+            }
+        }
         if (panState.current) {
             panState.current = null;
             setPanning(false);
@@ -804,6 +852,7 @@ export const CanvasViewer: React.FC = () => {
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
                     onPointerUp={onPointerUp}
+                    onPointerCancel={onPointerUp}
                     style={{ cursor }}
                 >
                     {/* image + selection overlay share one transformed wrapper */}
