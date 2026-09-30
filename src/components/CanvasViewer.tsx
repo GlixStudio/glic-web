@@ -32,6 +32,7 @@ import { Tooltip } from './controls/Tooltip';
 import { Dock } from './Dock';
 import { mapPoint, type LayerTransform } from '../core/transform';
 import { maskBounds } from '../core/exportImage';
+import { openIncomingImage } from '../core/incomingImage';
 import { Upload, RefreshCw, Maximize, Grid3x3, Eye, ZoomIn, ZoomOut } from 'lucide-react';
 
 const isEditableTarget = (e: KeyboardEvent) =>
@@ -71,7 +72,6 @@ export const CanvasViewer: React.FC = () => {
         resolved,
         lastSegments,
         filters,
-        loadImage,
         importGlic,
         toast,
         selection,
@@ -708,7 +708,7 @@ export const CanvasViewer: React.FC = () => {
     }, [zoom, setZoomClamped, displayed, selectAll, invertSelection, clearSelection, tool, selection, clearSelectedPixels, activeLayer, setLayerTransform]);
 
     const handleFile = useCallback(
-        async (file: File) => {
+        async (file: File, via: 'drop' | 'upload' = 'upload') => {
             if (file.name.toLowerCase().endsWith('.glic')) {
                 const buf = await file.arrayBuffer();
                 await importGlic(new Uint8Array(buf), false);
@@ -719,19 +719,20 @@ export const CanvasViewer: React.FC = () => {
                 return;
             }
             try {
-                loadImage(await fileToImageData(file));
+                // with an image open, the host asks: place as a layer, or open as new
+                openIncomingImage({ image: await fileToImageData(file), name: file.name.replace(/\.[^.]+$/, ''), via });
             } catch {
                 toast('error', 'Could not load image');
             }
         },
-        [importGlic, loadImage, toast]
+        [importGlic, toast]
     );
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(false);
         const file = e.dataTransfer.files[0];
-        if (file) handleFile(file);
+        if (file) handleFile(file, 'drop');
     };
 
     const showFilters = !comparing && processed && !showSegmentation;

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '../core/AppContext';
 import { sendView, type ViewCommand } from '../core/viewBus';
 import { fileToImageData } from '../core/imageio';
+import { openIncomingImage } from '../core/incomingImage';
 import { ProjectsModal } from './ProjectsModal';
 import { ExportModal } from './ExportModal';
 import { ImageSizeModal, CanvasSizeModal } from './SizeModals';
@@ -19,7 +20,7 @@ interface Item {
 }
 
 type Separator = 'sep';
-type MenuId = 'file' | 'image' | 'layer' | 'view';
+type MenuId = 'file' | 'edit' | 'image' | 'layer' | 'view';
 
 const MenuButton: React.FC<{
     id: MenuId;
@@ -80,7 +81,6 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         projectId,
         saveProject,
         newProject,
-        loadImage,
         importGlic,
         savePng,
         saveGlic,
@@ -100,6 +100,9 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         clearSelectedPixels,
         setLayerTransform,
         orientCanvas,
+        copyImage,
+        undo,
+        canUndo,
         toast,
     } = useApp();
 
@@ -182,6 +185,29 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         { label: 'Export .glic', hint: 'G', disabled: !encodedFile, onClick: saveGlic },
     ];
 
+    const pasteFromMenu = async () => {
+        // the menu has no paste event to read, so ask the async clipboard API (it may prompt)
+        try {
+            for (const item of await navigator.clipboard.read()) {
+                const type = item.types.find(t => t.startsWith('image/'));
+                if (!type) continue;
+                const blob = await item.getType(type);
+                openIncomingImage({ image: await fileToImageData(new File([blob], 'pasted', { type })), name: 'Pasted', via: 'paste' });
+                return;
+            }
+            toast('info', 'The clipboard has no image to paste');
+        } catch {
+            toast('info', 'Press ⌘V (Ctrl+V) to paste - this browser blocks reading the clipboard from a menu');
+        }
+    };
+
+    const editItems: (Item | Separator)[] = [
+        { label: 'Undo', hint: 'U', disabled: !canUndo, onClick: undo },
+        'sep',
+        { label: selection ? 'Copy selection' : 'Copy image', hint: '⌘C', disabled: !originalImage, onClick: () => void copyImage() },
+        { label: 'Paste image', hint: '⌘V', onClick: () => void pasteFromMenu() },
+    ];
+
     const imageItems: (Item | Separator)[] = [
         { label: 'Image size…', disabled: !originalImage, onClick: () => setDialog('image-size') },
         { label: 'Canvas size…', disabled: !originalImage, onClick: () => setDialog('canvas-size') },
@@ -203,6 +229,7 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         backward: () => active && moveLayer(active.id, -1),
         mergeDown: () => active && mergeDown(active.id),
         mergeVisible,
+        copy: () => void copyImage(),
     };
     const layerItems: (Item | Separator)[] = [
         { label: 'Duplicate layer', hint: selection ? '' : '⌘J', disabled: !active, onClick: () => active && duplicateLayer(active.id) },
@@ -240,6 +267,8 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
                 fn();
             };
             if (k === 'j') run(e.shiftKey ? c.viaCut : c.duplicate);
+            // ⌘C copies the picture unless the user is copying selected text
+            else if (k === 'c' && !e.shiftKey && !window.getSelection()?.toString()) run(c.copy);
             else if (k === 'e') run(e.shiftKey ? c.mergeVisible : c.mergeDown);
             else if (e.key === ']') run(c.forward);
             else if (e.key === '[') run(c.backward);
@@ -263,6 +292,7 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
     return (
         <div ref={rootRef} className="flex items-center gap-0.5">
             <MenuButton id="file" label="File" items={fileItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
+            <MenuButton id="edit" label="Edit" items={editItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
             <MenuButton id="image" label="Image" items={imageItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
             <MenuButton id="layer" label="Layer" items={layerItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
             <MenuButton id="view" label="View" items={viewItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
@@ -281,7 +311,7 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
                     e.target.value = '';
                     if (!f) return;
                     try {
-                        loadImage(await fileToImageData(f));
+                        openIncomingImage({ image: await fileToImageData(f), name: f.name.replace(/\.[^.]+$/, ''), via: 'upload' });
                     } catch {
                         toast('error', 'Could not load image');
                     }
