@@ -33,7 +33,7 @@ const MenuButton: React.FC<{
         <button
             onClick={() => setOpenMenu(m => (m === id ? null : id))}
             onMouseEnter={() => openMenu && setOpenMenu(id)}
-            className={`px-2.5 py-1 rounded-md text-[12px] font-bold transition-colors ${
+            className={`px-1.5 sm:px-2.5 py-1 rounded-md text-[12px] font-bold transition-colors ${
                 openMenu === id ? 'bg-glx-orange text-ink' : 'text-ink hover:bg-cream-3'
             }`}
         >
@@ -296,7 +296,7 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
             <MenuButton id="image" label="Image" items={imageItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
             <MenuButton id="layer" label="Layer" items={layerItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
             <MenuButton id="view" label="View" items={viewItems} openMenu={openMenu} setOpenMenu={setOpenMenu} />
-            <span className="ml-2 text-[11px] text-ink-2 truncate max-w-40" title={projectName}>
+            <span className="hidden md:inline ml-2 text-[11px] text-ink-2 truncate max-w-40" title={projectName}>
                 {projectName}
                 {projectId ? '' : originalImage ? ' *' : ''}
             </span>

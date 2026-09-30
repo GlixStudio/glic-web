@@ -1013,7 +1013,7 @@ export const CanvasViewer: React.FC = () => {
                             {layers.length > 0 &&
                                 ` · ${layers.find(l => l.id === activeLayerId)?.name ?? ''} (${layers.length})`}
                         </span>
-                        <span className="px-2 py-1 bg-glx-green border border-ink rounded-md text-[10px] font-bold text-ink">
+                        <span className="hidden sm:inline px-2 py-1 bg-glx-green border border-ink rounded-md text-[10px] font-bold text-ink">
                             3× WORKERS
                         </span>
                     </div>

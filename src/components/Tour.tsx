@@ -8,6 +8,7 @@ import { X } from 'lucide-react';
 // (localStorage flag) and can be restarted from Help & About.
 
 import { START_TOUR_EVENT } from '../core/tour';
+import { isPhoneWidth } from '../core/viewport';
 
 const SEEN_KEY = 'glic_tour_seen_v1';
 
@@ -111,7 +112,8 @@ export const Tour: React.FC = () => {
         } catch {
             seen = true;
         }
-        const t = seen ? null : window.setTimeout(open, 600);
+        // phones get the use-a-bigger-screen notice instead; the tour stays one tap away in Help
+        const t = seen || isPhoneWidth() ? null : window.setTimeout(open, 600);
         return () => {
             window.removeEventListener(START_TOUR_EVENT, open);
             if (t) window.clearTimeout(t);

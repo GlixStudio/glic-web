@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../core/AppContext';
 import { HELP, type HelpEntry } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
+import { isNarrowWidth } from '../core/viewport';
 import { LayersPanel } from './LayersPanel';
 import { MasksPanel } from './MasksPanel';
 import { Layers, SquareDashed, ChevronUp, Combine } from 'lucide-react';
@@ -12,7 +13,8 @@ type Tab = 'layers' | 'masks';
 export const Dock: React.FC = () => {
     const { originalImage, layers, masks, flatten } = useApp();
     const [tab, setTab] = useState<Tab>('layers');
-    const [collapsed, setCollapsed] = useState(false);
+    // tablets in portrait and phones: start as a pill so the image stays visible
+    const [collapsed, setCollapsed] = useState(isNarrowWidth);
 
     if (!originalImage) return null;
 
@@ -51,7 +53,7 @@ export const Dock: React.FC = () => {
     return (
         <div
             data-tour="layers"
-            className="absolute right-4 top-16 z-10 w-72 bg-cream border border-ink rounded-lg flex flex-col max-h-[75%]"
+            className="absolute right-2 sm:right-4 top-16 z-10 w-[min(18rem,calc(100%-1rem))] bg-cream border border-ink rounded-lg flex flex-col max-h-[75%]"
             {...stop}
         >
             <div className="flex items-center justify-between px-1.5 py-1 border-b border-line">

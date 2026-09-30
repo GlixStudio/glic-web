@@ -13,7 +13,7 @@ export const Toasts: React.FC = () => {
     if (toasts.length === 0) return null;
 
     return (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+        <div className="fixed top-14 left-2 right-2 md:top-auto md:left-auto md:bottom-4 md:right-4 z-50 flex flex-col gap-2 md:max-w-sm pointer-events-none [&>*]:pointer-events-auto">
             {toasts.map(t => (
                 <div
                     key={t.id}
