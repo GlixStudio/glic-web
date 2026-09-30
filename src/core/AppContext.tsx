@@ -26,6 +26,7 @@ import {
 } from './layers';
 import { EFFECT_DEFS, makeEffect, type Effect, type EffectType } from './effects';
 import { placeOnCanvas } from './place';
+import { maskBounds, applyMaskAlpha, cropImage } from './exportImage';
 import { IDENTITY_TRANSFORM, isIdentity, transformImage, transformMask, untransformMask, type LayerTransform } from './transform';
 import {
     imageDataToThumbnail,
@@ -154,6 +155,8 @@ interface AppState {
     savePng: () => Promise<void>;
     /** downloads the active layer's .glic stream */
     saveGlic: () => void;
+    /** ⌘C: what you see (adjustments baked in) to the clipboard as PNG - only the selection, if there is one */
+    copyImage: () => Promise<void>;
 
     /** encodes into the active glitch layer, replacing it (on the Background / an adjustment layer: a new layer just above) */
     encodeNow: () => Promise<void>;
@@ -1061,6 +1064,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     }, [toast]);
 
+    const copyImage = useCallback(async () => {
+        const img = processedRef.current ?? originalRef.current;
+        if (!img) return;
+        if (!('clipboard' in navigator) || typeof ClipboardItem === 'undefined') {
+            toast('error', 'This browser cannot copy images - use Export instead');
+            return;
+        }
+        try {
+            const c = imageDataToCanvas(img, filtersRef.current);
+            let out = c.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, c.width, c.height);
+            const sel = selectionRef.current;
+            const b = sel ? maskBounds(sel, img.width, img.height) : null;
+            if (sel && b) {
+                out = applyMaskAlpha(out, sel);
+                out = cropImage(out, b.x, b.y, b.w, b.h);
+            }
+            // pass a promise: Safari needs the ClipboardItem created inside the user gesture
+            const blob = canvasToPngBlob(imageDataToCanvas(out));
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            toast('success', b ? `Copied the selection (${b.w} × ${b.h})` : `Copied the image (${img.width} × ${img.height})`);
+        } catch (e) {
+            toast('error', `Copy failed: ${(e as Error).message}`);
+        }
+    }, [toast]);
+
     const saveGlic = useCallback(() => {
         const file = layersRef.current.find(l => l.id === activeIdRef.current)?.file ?? null;
         if (!file) return;
@@ -1328,6 +1356,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             newProject,
             savePng,
             saveGlic,
+            copyImage,
             encodeNow,
             newLayerEncode,
             iterate,
@@ -1401,6 +1430,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             newProject,
             savePng,
             saveGlic,
+            copyImage,
             encodeNow,
             newLayerEncode,
             iterate,
