@@ -25,6 +25,7 @@ import {
     type GlitchLayer,
 } from './layers';
 import { EFFECT_DEFS, makeEffect, type Effect, type EffectType } from './effects';
+import { placeOnCanvas } from './place';
 import { IDENTITY_TRANSFORM, isIdentity, transformImage, transformMask, untransformMask, type LayerTransform } from './transform';
 import {
     imageDataToThumbnail,
@@ -102,6 +103,8 @@ interface AppState {
     clearSelectedPixels: () => void;
     /** ⌘J / ⇧⌘J with a selection: the selected part of the active layer (or Background) as a new layer */
     layerViaCopy: (cut: boolean) => void;
+    /** paste / drop / upload onto the open canvas: the image as a new layer above the active one */
+    placeImageAsLayer: (img: ImageData, name?: string) => void;
     /** adds an adjustment layer above the active one (the selection becomes its mask) */
     addAdjustmentLayer: (type: EffectType) => void;
 
@@ -507,6 +510,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             updateLayer(id, { mask, thumb: layerThumbnail(layer, mask) });
         },
         [snapshot, updateLayer]
+    );
+
+    const placeImageAsLayer = useCallback(
+        (img: ImageData, name?: string) => {
+            const source = originalRef.current;
+            if (!source) return;
+            if (!canAddLayer(layersRef.current, source.width, source.height).ok) {
+                toast('error', 'Layer memory is full - flatten or delete layers to continue');
+                return;
+            }
+            const { result, mask, scaled } = placeOnCanvas(img, source.width, source.height);
+            const anchorId = activeIdRef.current;
+            const ls = layersRef.current;
+            const layer = makeLayer(name?.trim() || nextLayerName(ls), result, { mask, thumb: imageDataToThumbnail(result, mask) });
+            snapshot();
+            const next = [...ls];
+            const anchor = next.findIndex(l => l.id === anchorId);
+            next.splice(anchorId === null ? 0 : anchor < 0 ? next.length : anchor + 1, 0, layer);
+            setLayers(next);
+            setActiveLayerIdState(layer.id);
+            toast(
+                'success',
+                `Placed as ${layer.name}${scaled ? ' (shrunk to fit the canvas)' : ''} - press V to move, scale or rotate it`
+            );
+        },
+        [snapshot, toast]
     );
 
     const addAdjustmentLayer = useCallback(
@@ -1268,6 +1297,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setLayerTransform,
             clearSelectedPixels,
             layerViaCopy,
+            placeImageAsLayer,
             addAdjustmentLayer,
             addEffect,
             updateEffect,
@@ -1341,6 +1371,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setLayerTransform,
             clearSelectedPixels,
             layerViaCopy,
+            placeImageAsLayer,
             addAdjustmentLayer,
             addEffect,
             updateEffect,
