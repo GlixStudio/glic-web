@@ -20,6 +20,8 @@ const SHORTCUTS: [string, string][] = [
     ['H', 'Hand (pan) tool'],
     ['Delete', 'Remove the selected area from the active layer'],
     ['⌘J / ⇧⌘J (with selection)', 'Layer via copy / via cut'],
+    ['⌘C / ⌘V', 'Copy the image or selection / paste an image (as a layer or a new image)'],
+    ['Pinch / two fingers', 'Zoom / pan on touch screens'],
     ['M', 'Rect marquee (again: ellipse)'],
     ['L', 'Lasso'],
     ['W', 'Magic wand (again: color / object mode)'],
@@ -119,6 +121,10 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                                 <li>
                                     <strong className="text-ink">File</strong> - new, open, save projects; import images and .glic
                                     files; Export… for print-ready files; quick PNG and .glic export
+                                </li>
+                                <li>
+                                    <strong className="text-ink">Edit</strong> - undo, copy the image or the selection, paste an
+                                    image
                                 </li>
                                 <li>
                                     <strong className="text-ink">Image</strong> - Image size (scale everything), Canvas size

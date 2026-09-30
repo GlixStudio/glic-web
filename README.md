@@ -26,6 +26,8 @@ GLIC Web is a web-based vibe coded port of the **GLIC** (GLitch Image Codec) ima
 - Export dialog: composite, active layer, source, selection mask or a ZIP of everything; PNG/JPEG/WebP, 1–8× upscaling, DPI written into PNG and JPEG, crop to selection, selection as transparency
 - Tilesets (8–256 px), spritesheets arranged by dominant color, brightness, saturation, shape or similarity with a TexturePacker-style JSON manifest of per-tile color and shape values (for pattrn.glix.studio), and GIF/WebM animation export
 - Projects: File → Save keeps the whole piece (source, layer stack with masks, effects and streams, codec settings) in your browser via IndexedDB — reopen anytime from File → Open; layers are bounded by a memory budget, not a fixed count
+- Copy & paste: ⌘V pastes an image from the clipboard; ⌘C copies what you see (adjustments included) or just the selection, cropped with transparency. With an image open, pasting, dropping or uploading another asks whether to place it as a layer (centred, shrunk only to fit, ready for the Move tool) or open it as a new image. All of it is also in the Edit and File menus
+- Works on tablets (touch: pinch to zoom, two fingers to pan, with any tool) and adapts down to phones - there the controls become a drawer with a floating ENCODE button, and a one-time notice recommends a desktop or tablet for the full editor
 - Built-in help: hover any control for a plain-language explanation, plus a first-run guided tour (restartable from Help & About)
 
 ## Art-science wavelets and presets
