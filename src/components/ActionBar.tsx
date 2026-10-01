@@ -16,6 +16,8 @@ export const ActionBar: React.FC = () => {
         newLayerEncode,
         iterate,
         iterateLayers,
+        encodeLayerOnly,
+        setEncodeLayerOnly,
         undo,
         cancel,
         importGlic,
@@ -122,6 +124,18 @@ export const ActionBar: React.FC = () => {
                 </button>
                 </Tooltip>
             </div>
+
+            <Tooltip help={HELP.layerOnly}>
+            <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer select-none">
+                <input
+                    type="checkbox"
+                    checked={encodeLayerOnly}
+                    onChange={e => setEncodeLayerOnly(e.target.checked)}
+                    className="accent-glx-green"
+                />
+                Layer only (encode the active layer’s own pixels)
+            </label>
+            </Tooltip>
 
             <div className="flex gap-2 items-stretch">
                 <label className="flex items-center gap-1 text-xs font-medium text-ink" title="Iteration count">

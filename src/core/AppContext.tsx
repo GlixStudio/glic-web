@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { CodecConfig, cloneConfig } from './Codec';
 import { glicEngine, type ChannelProgress } from './engine';
 import type { Segment } from './Planes';
-import { combine, invertMask, isEmptyMask, type CombineMode, type Mask } from './selection';
+import { combine, compositeWithMask, invertMask, isEmptyMask, type CombineMode, type Mask } from './selection';
 import { putMask, removeMask, loadMasks, maskThumbnail, newMaskId, type SavedMask } from './maskStore';
 import {
     resampleImage,
@@ -158,6 +158,9 @@ interface AppState {
     /** ⌘C: what you see (adjustments baked in) to the clipboard as PNG - only the selection, if there is one */
     copyImage: () => Promise<void>;
 
+    /** ENCODE / Iterate → 1 layer feed the codec the active layer's own pixels, not the composite beneath it */
+    encodeLayerOnly: boolean;
+    setEncodeLayerOnly: (b: boolean) => void;
     /** encodes into the active glitch layer, replacing it (on the Background / an adjustment layer: a new layer just above) */
     encodeNow: () => Promise<void>;
     /** encodes the whole composite into a new layer on top of the stack */
@@ -212,6 +215,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [resolved, setResolved] = useState<CodecConfig | null>(null);
     const [lastSegments, setLastSegments] = useState<Segment[][] | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [encodeLayerOnly, setEncodeLayerOnly] = useState(false);
     const [progress, setProgress] = useState<number | null>(null);
     const [channelProgress, setChannelProgress] = useState<ChannelProgress[] | null>(null);
     const [filters, setFilters] = useState<ImageFilters>(DEFAULT_FILTERS);
@@ -813,18 +817,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         [replaceTarget, snapshot, encodedLayer, insertionIndex, onceHint]
     );
 
+    /**
+     * Layer only: the active layer's own pixels as codec input, or null to encode what is
+     * visible beneath it (mode off, or the Background - its own pixels already are the source).
+     * False when the active layer has no pixels of its own (an adjustment layer).
+     */
+    const ownPixels = useCallback(
+        (anchorId: string | null): { id: string; pixels: ImageData } | null | false => {
+            if (!encodeLayerOnly) return null;
+            const l = layersRef.current.find(x => x.id === anchorId);
+            if (!l) return null;
+            if (!l.result) {
+                toast('info', 'An adjustment layer has no pixels to encode - pick a pixel layer, or turn off Layer only');
+                return false;
+            }
+            return { id: l.id, pixels: l.result };
+        },
+        [encodeLayerOnly, toast]
+    );
+
+    /**
+     * lands a layer-only encode: swaps the layer's pixels and keeps everything else (mask,
+     * transform, effects, blending). A selection limits the glitch to its part of the layer.
+     */
+    const commitOwnEncode = useCallback(
+        (id: string, result: ImageData, file: Uint8Array | null, resolvedCfg: CodecConfig | null) => {
+            const ls = layersRef.current;
+            const idx = ls.findIndex(l => l.id === id);
+            const target = ls[idx];
+            const img = originalRef.current;
+            if (!target?.result || !img) return; // deleted while the codec ran
+            const sel = selectionRef.current;
+            // the selection is drawn in canvas space; the layer's pixels live in layer space
+            const pixels = sel ? compositeWithMask(target.result, result, untransformMask(sel, img.width, img.height, target.transform)) : result;
+            snapshot();
+            const next = [...ls];
+            next[idx] = { ...target, result: pixels, file, resolved: resolvedCfg };
+            next[idx].thumb = layerThumbnail(next[idx], next[idx].mask);
+            setLayers(next);
+        },
+        [snapshot]
+    );
+
     const encodeNow = useCallback(async () => {
         const source = originalRef.current;
         if (!source || glicEngine.isBusy) return;
         const anchorId = activeIdRef.current;
-        if (!replaceTarget(anchorId) && memoryFull()) return;
+        const own = ownPixels(anchorId);
+        if (own === false || (!own && !replaceTarget(anchorId) && memoryFull())) return;
         try {
-            const res = await runEngineEncode(inputFor(source, anchorId));
-            commitEncode(anchorId, res.preview, res.file, res.resolvedConfig);
+            const res = await runEngineEncode(own ? own.pixels : inputFor(source, anchorId));
+            if (own) commitOwnEncode(own.id, res.preview, res.file, res.resolvedConfig);
+            else commitEncode(anchorId, res.preview, res.file, res.resolvedConfig);
         } catch (e) {
             if ((e as Error).message !== 'cancelled') toast('error', `Encode failed: ${(e as Error).message}`);
         }
-    }, [replaceTarget, memoryFull, runEngineEncode, inputFor, commitEncode, toast]);
+    }, [ownPixels, replaceTarget, memoryFull, runEngineEncode, inputFor, commitEncode, commitOwnEncode, toast]);
 
     const newLayerEncode = useCallback(async () => {
         const source = originalRef.current;
@@ -845,11 +893,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const source = originalRef.current;
             if (!source || glicEngine.isBusy) return;
             const anchorId = activeIdRef.current;
-            if (!replaceTarget(anchorId) && memoryFull()) return;
+            const own = ownPixels(anchorId);
+            if (own === false || (!own && !replaceTarget(anchorId) && memoryFull())) return;
             setIsProcessing(true);
             setProgress(0);
             try {
-                let input = inputFor(source, anchorId);
+                let input = own ? own.pixels : inputFor(source, anchorId);
                 let last: Awaited<ReturnType<typeof glicEngine.encode>> | null = null;
                 for (let i = 0; i < times; i++) {
                     last = await glicEngine.encode(input, configRef.current, (_pc, overall) => {
@@ -860,7 +909,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (last) {
                     setResolved(last.resolvedConfig);
                     setLastSegments(last.segments);
-                    commitEncode(anchorId, last.preview, last.file, last.resolvedConfig);
+                    if (own) commitOwnEncode(own.id, last.preview, last.file, last.resolvedConfig);
+                    else commitEncode(anchorId, last.preview, last.file, last.resolvedConfig);
                 }
             } catch (e) {
                 if ((e as Error).message !== 'cancelled') toast('error', `Iterate failed: ${(e as Error).message}`);
@@ -869,7 +919,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setProgress(null);
             }
         },
-        [replaceTarget, memoryFull, inputFor, commitEncode, toast]
+        [ownPixels, replaceTarget, memoryFull, inputFor, commitEncode, commitOwnEncode, toast]
     );
 
     const iterateLayers = useCallback(
@@ -1357,6 +1407,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             savePng,
             saveGlic,
             copyImage,
+            encodeLayerOnly,
+            setEncodeLayerOnly,
             encodeNow,
             newLayerEncode,
             iterate,
@@ -1431,6 +1483,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             savePng,
             saveGlic,
             copyImage,
+            encodeLayerOnly,
+            setEncodeLayerOnly,
             encodeNow,
             newLayerEncode,
             iterate,
