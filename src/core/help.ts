@@ -89,6 +89,10 @@ export const HELP = {
         body: 'Encodes the current composite into a fresh layer on top of the stack - stacking damage on damage, while every pass stays separately adjustable.',
         shortcut: 'R',
     },
+    layerOnly: {
+        title: 'Layer only',
+        body: 'ENCODE and Iterate → 1 layer glitch the active layer’s own pixels instead of everything visible beneath it - e.g. a pasted image on its own. The layer keeps its mask, position, effects and blending; a selection limits the glitch to that part of the layer. NEW LAYER and Iterate → every pass still encode the composite.',
+    },
     iterate: {
         title: 'Iterate → 1 layer',
         body: 'Feeds the encoder its own output this many times in a row and lands only the final result, like ENCODE - in the active layer. Compound rot in one click, one layer.',
