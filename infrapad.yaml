@@ -1,0 +1,22 @@
+version: 1
+project: encoder-app
+
+# Browser-only SPA, served as static assets by a Cloudflare Worker
+# (wrangler.jsonc). No server, database, cache, storage or secrets: projects
+# and presets live in the browser (IndexedDB / localStorage). The only
+# variables are opt-in diagnostics for local test and script runs.
+shared: {}
+
+apps:
+  web:
+    path: .
+    env:
+      BENCH:
+        type: boolean
+        required: false
+      SWEEP:
+        type: boolean
+        required: false
+      CS:
+        type: number
+        required: false
