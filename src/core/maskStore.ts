@@ -5,6 +5,7 @@
 import type { Mask } from './selection';
 import { maskToImageData } from './selection';
 import { imageDataToPngBlob, blobToImageData } from './imageio';
+import { indexedDbOpener } from './storage';
 
 export interface SavedMask {
     id: string;
@@ -26,18 +27,8 @@ interface StoredMask {
     thumb: string;
 }
 
-const DB_NAME = 'glic-web-masks';
 const STORE = 'masks';
-
-const openDb = (): Promise<IDBDatabase> =>
-    new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = () => {
-            if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE, { keyPath: 'id' });
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error ?? new Error('IndexedDB unavailable'));
-    });
+const openDb = indexedDbOpener('glix-encoder-masks', STORE, 'glic-web-masks');
 
 const run = async <T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> => {
     const db = await openDb();

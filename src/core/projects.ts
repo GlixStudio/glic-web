@@ -7,6 +7,7 @@ import type { CodecConfig } from './Codec';
 import type { BlendMode, LayerKind } from './layers';
 import type { Effect } from './effects';
 import type { LayerTransform } from './transform';
+import { indexedDbOpener } from './storage';
 
 export interface StoredLayer {
     /** absent in projects saved before adjustment layers (= 'pixel') */
@@ -56,20 +57,8 @@ export interface ProjectMeta {
     layerCount: number;
 }
 
-const DB_NAME = 'glic-web';
 const STORE = 'projects';
-
-const openDb = (): Promise<IDBDatabase> =>
-    new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = () => {
-            if (!req.result.objectStoreNames.contains(STORE)) {
-                req.result.createObjectStore(STORE, { keyPath: 'id' });
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error ?? new Error('IndexedDB unavailable'));
-    });
+const openDb = indexedDbOpener('glix-encoder', STORE, 'glic-web');
 
 const tx = async <T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> => {
     const db = await openDb();

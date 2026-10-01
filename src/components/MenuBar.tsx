@@ -29,7 +29,7 @@ const MenuButton: React.FC<{
     openMenu: MenuId | null;
     setOpenMenu: React.Dispatch<React.SetStateAction<MenuId | null>>;
 }> = ({ id, label, items, openMenu, setOpenMenu }) => (
-    <div className="relative">
+    <div className="relative" data-tour={`menu-${id}`}>
         <button
             onClick={() => setOpenMenu(m => (m === id ? null : id))}
             onMouseEnter={() => openMenu && setOpenMenu(id)}

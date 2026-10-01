@@ -17,6 +17,7 @@ export const GlobalSettings: React.FC = () => {
                     <Settings className="w-3 h-3" /> Global
                 </div>
                 <PresetManager />
+                <div data-tour="colorspace" className="space-y-3">
                 <Select
                     label="Color space"
                     help={HELP.colorspace}
@@ -30,6 +31,7 @@ export const GlobalSettings: React.FC = () => {
                     checked={separateChannels}
                     onChange={setSeparateChannels}
                 />
+                </div>
             </div>
         </div>
     );

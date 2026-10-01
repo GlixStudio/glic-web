@@ -218,7 +218,7 @@ export const TilesetPanel: React.FC = () => {
     };
 
     return (
-        <div className="border-t border-line pt-4">
+        <div data-tour="tileset" className="border-t border-line pt-4">
             <button
                 onClick={() => setExpanded(e => !e)}
                 className="w-full flex items-center justify-between mb-3 group"

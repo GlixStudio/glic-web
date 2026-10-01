@@ -110,6 +110,7 @@ export const ActionBar: React.FC = () => {
 
                 <Tooltip help={HELP.newLayer}>
                 <button
+                    data-tour="new-layer"
                     className={`flex-1 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
                         !originalImage || isProcessing
                             ? 'bg-cream-3 text-ink/30 border border-ink/20 cursor-not-allowed'
@@ -126,7 +127,7 @@ export const ActionBar: React.FC = () => {
             </div>
 
             <Tooltip help={HELP.layerOnly}>
-            <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer select-none">
+            <label data-tour="layer-only" className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer select-none">
                 <input
                     type="checkbox"
                     checked={encodeLayerOnly}
@@ -137,7 +138,7 @@ export const ActionBar: React.FC = () => {
             </label>
             </Tooltip>
 
-            <div className="flex gap-2 items-stretch">
+            <div data-tour="iterate" className="flex gap-2 items-stretch">
                 <label className="flex items-center gap-1 text-xs font-medium text-ink" title="Iteration count">
                     <Repeat className="w-3 h-3" />
                     <span className="sr-only">Iterations</span>×
@@ -175,7 +176,7 @@ export const ActionBar: React.FC = () => {
                 ))}
             </div>
 
-            <div className="flex gap-2">
+            <div data-tour="undo" className="flex gap-2">
                 <Tooltip help={HELP.undo}>
                 <button
                     className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
@@ -193,69 +194,71 @@ export const ActionBar: React.FC = () => {
                 </Tooltip>
             </div>
 
-            <div className="flex gap-2 pt-1 border-t border-line">
-                <Tooltip help={HELP.savePng}>
-                <button
-                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
-                        !processed
-                            ? 'text-ink/30 bg-cream-3 border border-ink/20 cursor-not-allowed'
-                            : 'text-ink bg-cream-2 hover:bg-white border border-ink'
-                    }`}
-                    onClick={savePng}
-                    disabled={!processed}
-                >
-                    <Download className="w-3 h-3" /> PNG
-                    <span className="text-[9px] opacity-60">S</span>
-                </button>
-                </Tooltip>
-                <Tooltip help={HELP.saveGlic}>
-                <button
-                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
-                        !encodedFile
-                            ? 'text-ink/30 bg-cream-3 border border-ink/20 cursor-not-allowed'
-                            : 'text-ink bg-cream-2 hover:bg-white border border-ink'
-                    }`}
-                    onClick={saveGlic}
-                    disabled={!encodedFile}
-                >
-                    <Download className="w-3 h-3" /> .glic
-                    <span className="text-[9px] opacity-60">G</span>
-                </button>
-                </Tooltip>
-                <Tooltip help={HELP.importGlic}>
-                <button
-                    className="flex-1 py-2 rounded-lg text-xs font-medium text-ink bg-cream-2 hover:bg-white border border-ink transition-all flex items-center justify-center gap-1.5"
-                    onClick={() => glicInputRef.current?.click()}
-                    disabled={isProcessing}
-                >
-                    <FileUp className="w-3 h-3" /> Import
-                    <span className="text-[9px] opacity-60">I</span>
-                </button>
-                </Tooltip>
-                <input
-                    ref={glicInputRef}
-                    type="file"
-                    accept=".glic"
-                    className="hidden"
-                    onChange={e => {
-                        const f = e.target.files?.[0];
-                        if (f) onGlicFile(f);
-                        e.target.value = '';
-                    }}
-                />
-            </div>
+            <div data-tour="files" className="flex flex-col gap-2">
+                <div className="flex gap-2 pt-1 border-t border-line">
+                    <Tooltip help={HELP.savePng}>
+                    <button
+                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                            !processed
+                                ? 'text-ink/30 bg-cream-3 border border-ink/20 cursor-not-allowed'
+                                : 'text-ink bg-cream-2 hover:bg-white border border-ink'
+                        }`}
+                        onClick={savePng}
+                        disabled={!processed}
+                    >
+                        <Download className="w-3 h-3" /> PNG
+                        <span className="text-[9px] opacity-60">S</span>
+                    </button>
+                    </Tooltip>
+                    <Tooltip help={HELP.saveGlic}>
+                    <button
+                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                            !encodedFile
+                                ? 'text-ink/30 bg-cream-3 border border-ink/20 cursor-not-allowed'
+                                : 'text-ink bg-cream-2 hover:bg-white border border-ink'
+                        }`}
+                        onClick={saveGlic}
+                        disabled={!encodedFile}
+                    >
+                        <Download className="w-3 h-3" /> .glic
+                        <span className="text-[9px] opacity-60">G</span>
+                    </button>
+                    </Tooltip>
+                    <Tooltip help={HELP.importGlic}>
+                    <button
+                        className="flex-1 py-2 rounded-lg text-xs font-medium text-ink bg-cream-2 hover:bg-white border border-ink transition-all flex items-center justify-center gap-1.5"
+                        onClick={() => glicInputRef.current?.click()}
+                        disabled={isProcessing}
+                    >
+                        <FileUp className="w-3 h-3" /> Import
+                        <span className="text-[9px] opacity-60">I</span>
+                    </button>
+                    </Tooltip>
+                    <input
+                        ref={glicInputRef}
+                        type="file"
+                        accept=".glic"
+                        className="hidden"
+                        onChange={e => {
+                            const f = e.target.files?.[0];
+                            if (f) onGlicFile(f);
+                            e.target.value = '';
+                        }}
+                    />
+                </div>
 
-            <Tooltip help={HELP.overrideHeader}>
-            <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer select-none">
-                <input
-                    type="checkbox"
-                    checked={overrideHeader}
-                    onChange={e => setOverrideHeader(e.target.checked)}
-                    className="accent-glx-green"
-                />
-                Override header on import (decode with current settings)
-            </label>
-            </Tooltip>
+                <Tooltip help={HELP.overrideHeader}>
+                <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={overrideHeader}
+                        onChange={e => setOverrideHeader(e.target.checked)}
+                        className="accent-glx-green"
+                    />
+                    Override header on import (decode with current settings)
+                </label>
+                </Tooltip>
+            </div>
         </div>
     );
 };

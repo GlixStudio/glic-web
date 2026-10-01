@@ -82,6 +82,7 @@ export const SelectionToolbar: React.FC<Props> = ({
                 {TOOLS.map(t => (
                     <Tooltip key={t.id} help={t.help}>
                         <button
+                            data-tour={`tool-${t.id}`}
                             onClick={() => setTool(t.id)}
                             className={`p-2.5 transition-colors ${
                                 tool === t.id ? 'bg-glx-orange text-ink' : 'text-ink hover:bg-white'
@@ -95,7 +96,7 @@ export const SelectionToolbar: React.FC<Props> = ({
 
             {/* context options */}
             {showOptions && (
-                <div className="flex flex-col gap-2.5 bg-cream-2 border border-ink rounded-lg backdrop-blur-sm p-2.5 w-44">
+                <div data-tour="tool-options" className="flex flex-col gap-2.5 bg-cream-2 border border-ink rounded-lg backdrop-blur-sm p-2.5 w-44">
                     <Tooltip help={HELP.combineMode}>
                     <div className="flex rounded-md overflow-hidden border border-ink">
                         {MODES.map(m => (

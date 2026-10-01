@@ -365,7 +365,7 @@ export const LayersPanel: React.FC = () => {
     return (
         <>
             {/* Photoshop-style header: blend mode + opacity of the active layer */}
-            <div className={`p-2 border-b border-line space-y-1.5 ${blendDisabled ? 'opacity-50' : ''}`}>
+            <div data-tour="layer-blend" className={`p-2 border-b border-line space-y-1.5 ${blendDisabled ? 'opacity-50' : ''}`}>
                 <div className="flex items-center gap-2">
                     <Tooltip help={HELP.blendMode}>
                         <select
@@ -405,7 +405,7 @@ export const LayersPanel: React.FC = () => {
             </div>
 
             {/* stack, top layer first, Background last */}
-            <div className="overflow-y-auto custom-scrollbar p-1.5 space-y-0.5 max-h-72 min-h-0 flex-shrink-0">
+            <div data-tour="layer-list" className="overflow-y-auto custom-scrollbar p-1.5 space-y-0.5 max-h-72 min-h-0 flex-shrink-0">
                 {[...layers].reverse().map(layer => (
                     <LayerRow
                         key={layer.id}
@@ -445,7 +445,7 @@ export const LayersPanel: React.FC = () => {
             </div>
 
             {/* footer toolbar, Photoshop order */}
-            <div className="flex items-center justify-between px-1.5 py-1 border-t border-line">
+            <div data-tour="layer-footer" className="flex items-center justify-between px-1.5 py-1 border-t border-line">
                 <div className="flex items-center">
                     <EffectSelect
                         icon={<span className="block w-3.5 h-3.5 leading-[14px] text-center text-[11px] font-bold italic font-serif">fx</span>}

@@ -13,7 +13,7 @@ export const FiltersPanel: React.FC = () => {
     const update = (key: keyof typeof filters, value: number) => setFilters({ ...filters, [key]: value });
 
     return (
-        <div className="border-t border-line pt-4">
+        <div data-tour="adjustments" className="border-t border-line pt-4">
             <div className="w-full flex items-center justify-between mb-3">
                 <button
                     onClick={() => setExpanded(e => !e)}

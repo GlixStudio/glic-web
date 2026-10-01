@@ -45,7 +45,7 @@ export const ChannelSettings: React.FC = () => {
     return (
         <div className="flex flex-col gap-3">
             {/* Segmentation */}
-            <div className="space-y-2.5 pb-3 border-b border-line">
+            <div data-tour="ch-segmentation" className="space-y-2.5 pb-3 border-b border-line">
                 <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <Layers className="w-3 h-3" /> Segmentation
                 </div>
@@ -80,7 +80,7 @@ export const ChannelSettings: React.FC = () => {
             </div>
 
             {/* Prediction */}
-            <div className="space-y-2.5 pb-3 border-b border-line">
+            <div data-tour="ch-prediction" className="space-y-2.5 pb-3 border-b border-line">
                 <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <ImageIcon className="w-3 h-3" /> Prediction
                 </div>
@@ -94,7 +94,7 @@ export const ChannelSettings: React.FC = () => {
             </div>
 
             {/* Quantization */}
-            <div className="space-y-2.5 pb-3 border-b border-line">
+            <div data-tour="ch-quantization" className="space-y-2.5 pb-3 border-b border-line">
                 <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <Settings className="w-3 h-3" /> Quantization
                 </div>
@@ -120,7 +120,7 @@ export const ChannelSettings: React.FC = () => {
             </div>
 
             {/* Transformation */}
-            <div className="space-y-2.5 pb-3 border-b border-line">
+            <div data-tour="ch-wavelet" className="space-y-2.5 pb-3 border-b border-line">
                 <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <Layers className="w-3 h-3" /> Wavelet transform
                 </div>
@@ -170,7 +170,7 @@ export const ChannelSettings: React.FC = () => {
             </div>
 
             {/* Encoding */}
-            <div className="space-y-2.5 pb-3 border-b border-line">
+            <div data-tour="ch-encoding" className="space-y-2.5 pb-3 border-b border-line">
                 <div className="flex items-center gap-2 text-ink-2 uppercase text-[10px] font-bold tracking-wider mb-2">
                     <Download className="w-3 h-3" /> Final encoding
                 </div>

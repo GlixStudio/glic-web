@@ -57,7 +57,7 @@ export const HELP = {
     // --- wavelet ---
     wavelet: {
         title: 'Wavelet',
-        body: 'The transform that smears each tile into frequency ripples before storage. All 67 originals from desktop GLIC are here, including the mathematically broken ones that define its look - try CDF 9/7, the even BiOrthogonals, or Battle 23. The ~b- entries at the end are glic-web additions (desktop GLIC cannot decode those). Random picks a fresh original per encode.',
+        body: 'The transform that smears each tile into frequency ripples before storage. All 67 originals from desktop GLIC are here, including the mathematically broken ones that define its look - try CDF 9/7, the even BiOrthogonals, or Battle 23. The ~b- entries at the end are GLIX Encoder additions (desktop GLIC cannot decode those). Random picks a fresh original per encode.',
     },
     transformType: {
         title: 'Transform type',

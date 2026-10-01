@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Monitor, Tablet } from 'lucide-react';
 import { isPhoneWidth } from '../core/viewport';
+import { storageKey } from '../core/storage';
 
-const SEEN_KEY = 'glic_mobile_notice_v1';
+const SEEN_KEY = storageKey('mobile_notice_v1');
 
 const alreadySeen = () => {
     try {
@@ -35,7 +36,7 @@ export const MobileNotice: React.FC = () => {
                     <h2 className="text-sm font-black uppercase tracking-wider">Best on a bigger screen</h2>
                 </div>
                 <p className="text-[13px] leading-relaxed text-ink">
-                    GLIC Web is a full glitch editor - per-channel codec settings, layers, masks and selection tools - and it is
+                    GLIX Encoder is a full glitch editor - per-channel codec settings, layers, masks and selection tools - and it is
                     made for a <b>desktop</b> or a <b>tablet</b>.
                 </p>
                 <p className="text-[12px] leading-relaxed text-ink-2">
