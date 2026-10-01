@@ -33,6 +33,7 @@ import { Dock } from './Dock';
 import { mapPoint, type LayerTransform } from '../core/transform';
 import { maskBounds } from '../core/exportImage';
 import { openIncomingImage } from '../core/incomingImage';
+import { useTourReveal } from '../core/tour';
 import { Upload, RefreshCw, Maximize, Grid3x3, Eye, ZoomIn, ZoomOut } from 'lucide-react';
 
 const isEditableTarget = (e: KeyboardEvent) =>
@@ -101,6 +102,10 @@ export const CanvasViewer: React.FC = () => {
     const [spaceHeld, setSpaceHeld] = useState(false);
     const [tool, setTool] = useState<SelectionTool>('hand');
     const [toolOptions, setToolOptions] = useState<ToolOptions>(DEFAULT_TOOL_OPTIONS);
+    // the tour shows the selection options, which only exist while a selection tool is active
+    useTourReveal(what => {
+        if (what === 'selection-options') setTool(t => (t === 'move' || t === 'hand' ? 'rect' : t));
+    });
     const panState = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
     const gesture = useRef<Gesture | null>(null);
     const xform = useRef<XformGesture | null>(null);
@@ -965,7 +970,7 @@ export const CanvasViewer: React.FC = () => {
                         onPointerUp={e => e.stopPropagation()}
                     >
                         <Tooltip help={HELP.zoomControls}>
-                        <div className="flex items-center bg-cream-2 border border-ink rounded-lg backdrop-blur-sm overflow-hidden">
+                        <div data-tour="zoom" className="flex items-center bg-cream-2 border border-ink rounded-lg backdrop-blur-sm overflow-hidden">
                             <button
                                 onClick={() => setZoomClamped((zoom ?? fitScale) / 1.2)}
                                 className="p-2 text-ink hover:bg-white transition-colors"
@@ -1000,6 +1005,7 @@ export const CanvasViewer: React.FC = () => {
                         {processed && originalImage && (
                             <Tooltip help={HELP.compare}>
                             <button
+                                data-tour="compare"
                                 onPointerDown={e => {
                                     e.stopPropagation();
                                     setComparing(true);
@@ -1020,6 +1026,7 @@ export const CanvasViewer: React.FC = () => {
                         {processed && lastSegments && (
                             <Tooltip help={HELP.segmentationView}>
                             <button
+                                data-tour="segmentation-view"
                                 onClick={() => setShowSegmentation(s => !s)}
                                 className={`p-2 rounded-lg border backdrop-blur-sm transition-colors ${
                                     showSegmentation
@@ -1054,7 +1061,7 @@ export const CanvasViewer: React.FC = () => {
                     </div>
 
                     {/* status line */}
-                    <div className="absolute bottom-3 left-3 flex items-center gap-1.5 pointer-events-none">
+                    <div data-tour="status" className="absolute bottom-3 left-3 flex items-center gap-1.5 pointer-events-none">
                         <span className="px-2.5 py-1 bg-cream-2 border border-ink rounded-md text-[11px] font-medium text-ink">
                             {imgW} × {imgH} ·{' '}
                             {comparing ? 'source' : showSegmentation ? 'segmentation' : processed ? 'processed' : 'source'}

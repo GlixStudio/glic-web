@@ -5,7 +5,8 @@ import { FilesetResolver, InteractiveSegmenterLegacy } from '@mediapipe/tasks-vi
 import { MEDIAPIPE_VERSION, MODEL_URL, MODEL_BYTES, confidenceToMask } from '../core/objectSelectShared';
 
 const WASM_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/wasm`;
-const CACHE_NAME = 'glic-models-v1';
+const CACHE_NAME = 'glix-encoder-models-v1';
+const LEGACY_CACHE_NAME = 'glic-models-v1'; // from when the app was GLIC Web
 
 type In =
     | { type: 'load' }
@@ -18,6 +19,12 @@ const fetchModel = async (): Promise<Uint8Array> => {
     let cache: Cache | null = null;
     try {
         cache = await caches.open(CACHE_NAME);
+        // a model cached under the old name moves over instead of downloading again
+        if (await caches.has(LEGACY_CACHE_NAME)) {
+            const legacy = await (await caches.open(LEGACY_CACHE_NAME)).match(MODEL_URL);
+            if (legacy && !(await cache.match(MODEL_URL))) await cache.put(MODEL_URL, legacy);
+            await caches.delete(LEGACY_CACHE_NAME);
+        }
         const hit = await cache.match(MODEL_URL);
         if (hit) return new Uint8Array(await hit.arrayBuffer());
     } catch {

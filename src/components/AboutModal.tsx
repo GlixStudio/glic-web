@@ -65,7 +65,9 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                             Tip: hover any control anywhere in the app for a plain-language explanation of what it does.
                         </p>
                         <p>
-                            <strong className="text-ink">GLIC Web</strong> is a web port of{' '}
+                            <strong className="text-ink">GLIX Encoder</strong> is image manipulation software for
+                            compressing, encoding, decoding and glitching images - with layers, masks, selections and
+                            effects to shape the result. Its engine is a fork and web port of{' '}
                             <strong className="text-ink">GLIC</strong> (GLitch Image Codec), the Processing tool for
                             image compression built for databending. GLIC has been a huge inspiration for GLIX's aesthetics
                             and design approach, so we ported it to the web to share it with the world.
@@ -76,7 +78,7 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                             <ul className="list-disc list-inside space-y-1 ml-2 text-ink-2">
                                 <li>All 67 original JWave wavelets, bit-faithful to desktop GLIC</li>
                                 <li>
-                                    38 extra <code>~b-</code> wavelets and 36 <code>~b-</code> presets made for GLIC Web (desktop GLIC
+                                    38 extra <code>~b-</code> wavelets and 36 <code>~b-</code> presets made for GLIX Encoder (desktop GLIC
                                     cannot decode files that use them)
                                 </li>
                                 <li>
@@ -173,7 +175,7 @@ export const AboutModal: React.FC<{ open: boolean; onClose: () => void }> = ({ o
                                 </a>
                             </p>
                             <p>
-                                GLIC Web source:{' '}
+                                GLIX Encoder source:{' '}
                                 <a href="https://github.com/GlixStudio/glic-web" className="text-ink underline decoration-glx-orange decoration-2" target="_blank" rel="noopener noreferrer">
                                     github.com/GlixStudio/glic-web
                                 </a>

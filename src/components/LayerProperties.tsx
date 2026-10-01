@@ -226,7 +226,7 @@ export const LayerProperties: React.FC = () => {
 
     if (!active) {
         return (
-            <div className="border-t border-line p-2.5 text-[11px] text-ink-2 leading-relaxed">
+            <div data-tour="layer-properties" className="border-t border-line p-2.5 text-[11px] text-ink-2 leading-relaxed">
                 <b className="text-ink">Background</b> is your imported image. ENCODE creates Layer 1 above it, NEW LAYER stacks more; add an
                 adjustment layer (<span className="font-mono">◐</span> below the list) to post-process everything at once.
                 Click its lock to unlock it, then its eye to hide it
@@ -236,7 +236,7 @@ export const LayerProperties: React.FC = () => {
     }
 
     return (
-        <div className="border-t border-line p-2 space-y-2 overflow-y-auto custom-scrollbar min-h-0 flex-1">
+        <div data-tour="layer-properties" className="border-t border-line p-2 space-y-2 overflow-y-auto custom-scrollbar min-h-0 flex-1">
             <div className="space-y-1">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-ink-2">
                     Mask {active.mask ? '' : <span className="normal-case font-normal">- none, full frame</span>}

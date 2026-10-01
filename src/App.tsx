@@ -11,12 +11,18 @@ import { IncomingImageHost } from './components/IncomingImageHost';
 import { PhoneEncodeButton } from './components/PhoneEncodeButton';
 import { MobileNotice } from './components/MobileNotice';
 import { isPhoneWidth } from './core/viewport';
+import { useTourReveal } from './core/tour';
 import { PanelLeft, CircleHelp } from 'lucide-react';
 
 function App() {
     // phones start with the canvas, the controls one tap away
     const [sidebarOpen, setSidebarOpen] = useState(() => !isPhoneWidth());
     const [showAbout, setShowAbout] = useState(false);
+    // the tour opens the controls for sidebar stops; on phones the drawer covers the canvas, so it closes for the rest
+    useTourReveal(what => {
+        if (what.startsWith('sidebar-')) setSidebarOpen(true);
+        else if (isPhoneWidth()) setSidebarOpen(false);
+    });
 
     return (
         <AppProvider>
@@ -25,6 +31,7 @@ function App() {
                 <header className="flex items-center justify-between gap-2 px-2 sm:px-3 h-11 border-b border-ink bg-cream flex-shrink-0 z-40">
                     <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                         <button
+                            data-tour="sidebar-toggle"
                             onClick={() => setSidebarOpen(o => !o)}
                             className="p-1.5 rounded-md border border-ink bg-cream-2 hover:bg-white text-ink transition-colors"
                             title={sidebarOpen ? 'Hide controls' : 'Show controls'}
@@ -37,11 +44,12 @@ function App() {
                             <div className="bg-glx-green" />
                             <div className="bg-cream-2" />
                         </div>
-                        <h1 className="hidden sm:block text-[15px] font-black tracking-tight whitespace-nowrap">GLIC Web</h1>
+                        <h1 className="hidden sm:block text-[15px] font-black tracking-tight whitespace-nowrap">GLIX Encoder</h1>
                         <div className="hidden sm:block w-px h-5 bg-line mx-1" />
                         <MenuBar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(o => !o)} />
                     </div>
                     <button
+                        data-tour="help"
                         onClick={() => setShowAbout(true)}
                         className="flex-shrink-0 flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-md border border-ink bg-cream-2 hover:bg-white text-[11px] font-bold text-ink transition-colors"
                         title="Help, guided tour & shortcuts"

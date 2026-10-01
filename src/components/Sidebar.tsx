@@ -8,10 +8,15 @@ import { TilesetPanel } from './TilesetPanel';
 import { ActionBar } from './ActionBar';
 import { Toggle } from './controls/Toggle';
 import { HELP } from '../core/help';
+import { useTourReveal } from '../core/tour';
 
 export const Sidebar: React.FC = () => {
     const { separateChannels, setSeparateChannels } = useApp();
     const [activeTab, setActiveTab] = useState(0);
+    useTourReveal(what => {
+        if (what === 'sidebar-global') setActiveTab(0);
+        if (what === 'sidebar-channels') setActiveTab(1);
+    });
 
     const tabs = ['Global', 'Channels'];
     const tab = Math.min(activeTab, tabs.length - 1);
@@ -30,7 +35,7 @@ export const Sidebar: React.FC = () => {
                 {tabs.map((t, i) => (
                     <button
                         key={t}
-                        data-tour={i === 1 ? 'tab-channels' : undefined}
+                        data-tour={i === 1 ? 'tab-channels' : 'tab-global'}
                         className={`flex-1 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-md border border-ink transition-colors ${
                             tab === i ? 'bg-glx-orange text-ink' : 'bg-cream-2 text-ink hover:bg-white'
                         }`}
@@ -47,13 +52,17 @@ export const Sidebar: React.FC = () => {
                         <GlobalSettings />
                     ) : (
                         <>
-                            <Toggle
-                                label="Separate channels"
-                                help={HELP.separateChannels}
-                                checked={separateChannels}
-                                onChange={setSeparateChannels}
-                            />
-                            {separateChannels ? <ChannelMatrix /> : <ChannelSettings />}
+                            <div data-tour="separate-channels">
+                                <Toggle
+                                    label="Separate channels"
+                                    help={HELP.separateChannels}
+                                    checked={separateChannels}
+                                    onChange={setSeparateChannels}
+                                />
+                            </div>
+                            <div data-tour="channel-editor">
+                                {separateChannels ? <ChannelMatrix /> : <ChannelSettings />}
+                            </div>
                         </>
                     )}
 

@@ -14,6 +14,7 @@
 import presetsData from './presets.json';
 import { CodecConfig } from './Codec';
 import { EXTRA_PRESETS, applyExtraPreset } from './extraPresets';
+import { storageKey } from './storage';
 
 type RawPreset = Record<string, number | number[]>;
 
@@ -99,7 +100,7 @@ export interface StoredPreset {
     separateChannels: boolean;
 }
 
-const STORAGE_KEY = 'glic_custom_presets_v2';
+const STORAGE_KEY = storageKey('custom_presets_v2');
 
 export const loadCustomPresets = (): Record<string, StoredPreset> => {
     try {

@@ -3,6 +3,7 @@ import { useApp } from '../core/AppContext';
 import { HELP, type HelpEntry } from '../core/help';
 import { Tooltip } from './controls/Tooltip';
 import { isNarrowWidth } from '../core/viewport';
+import { useTourReveal } from '../core/tour';
 import { LayersPanel } from './LayersPanel';
 import { MasksPanel } from './MasksPanel';
 import { Layers, SquareDashed, ChevronUp, Combine } from 'lucide-react';
@@ -15,6 +16,11 @@ export const Dock: React.FC = () => {
     const [tab, setTab] = useState<Tab>('layers');
     // tablets in portrait and phones: start as a pill so the image stays visible
     const [collapsed, setCollapsed] = useState(isNarrowWidth);
+    useTourReveal(what => {
+        if (what !== 'dock-layers' && what !== 'dock-masks') return;
+        setCollapsed(false);
+        setTab(what === 'dock-masks' ? 'masks' : 'layers');
+    });
 
     if (!originalImage) return null;
 
@@ -52,12 +58,12 @@ export const Dock: React.FC = () => {
 
     return (
         <div
-            data-tour="layers"
+            data-tour="dock"
             className="absolute right-2 sm:right-4 top-16 z-10 w-[min(18rem,calc(100%-1rem))] bg-cream border border-ink rounded-lg flex flex-col max-h-[75%]"
             {...stop}
         >
             <div className="flex items-center justify-between px-1.5 py-1 border-b border-line">
-                <div className="flex items-center gap-0.5">
+                <div data-tour="dock-tabs" className="flex items-center gap-0.5">
                     {tabBtn('layers', <Layers className="w-3 h-3" />, 'Layers', layers.length, HELP.layersPanel)}
                     {tabBtn('masks', <SquareDashed className="w-3 h-3" />, 'Masks', masks.length, HELP.masksPanel)}
                 </div>

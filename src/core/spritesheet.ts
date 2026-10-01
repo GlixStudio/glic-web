@@ -316,7 +316,7 @@ export const sheetManifest = (
         })
     ),
     meta: {
-        app: 'GLIC Web (encoder.glix.studio)',
+        app: 'GLIX Encoder (encoder.glix.studio)',
         version: '1',
         image: meta.image,
         format: 'RGBA8888',

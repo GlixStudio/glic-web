@@ -1,6 +1,6 @@
-# GLIC Web
+# GLIX Encoder
 
-GLIC Web is a web-based vibe coded port of the **GLIC** (GLitch Image Codec) image compression and transformation tool. GLIC has been a huge inspiration for GLIX's aesthetics and design approach. Thus we wanted to port it to web (originally it is a Processing program), and share it with the world.
+GLIX Encoder is image manipulation software for compressing, encoding, decoding and glitching images, with layers, masks, selections and effects to shape the result. Its engine is a web-based, vibe coded fork and port of the **GLIC** (GLitch Image Codec) image compression and transformation tool. GLIC has been a huge inspiration for GLIX's aesthetics and design approach. Thus we wanted to port it to web (originally it is a Processing program), and share it with the world.
 
 ## Features
 
@@ -28,7 +28,7 @@ GLIC Web is a web-based vibe coded port of the **GLIC** (GLitch Image Codec) ima
 - Projects: File → Save keeps the whole piece (source, layer stack with masks, effects and streams, codec settings) in your browser via IndexedDB — reopen anytime from File → Open; layers are bounded by a memory budget, not a fixed count
 - Copy & paste: ⌘V pastes an image from the clipboard; ⌘C copies what you see (adjustments included) or just the selection, cropped with transparency. With an image open, pasting, dropping or uploading another asks whether to place it as a layer (centred, shrunk only to fit, ready for the Move tool) or open it as a new image. All of it is also in the Edit and File menus
 - Works on tablets (touch: pinch to zoom, two fingers to pan, with any tool) and adapts down to phones - there the controls become a drawer with a floating ENCODE button, and a one-time notice recommends a desktop or tablet for the full editor
-- Built-in help: hover any control for a plain-language explanation, plus a first-run guided tour (restartable from Help & About)
+- Built-in help: hover any control for a plain-language explanation, plus a guided tour of the whole editor - menus, every codec stage, encoding, selection tools, layers, masks and output, in skippable parts. It opens its own tabs and panels as it goes, offers a sample image and a first encode so every stop has something to show, and restarts from Help & About
 
 ## Art-science wavelets and presets
 
@@ -57,7 +57,7 @@ Wavelet ids are part of the `.glic` format: new ideas are appended, existing one
 ## Links
 
 - **GLIC Source code:** [https://github.com/GlitchCodec/GLIC](https://github.com/GlitchCodec/GLIC)
-- **GLIC-web Source code:** [https://github.com/GlixStudio/glic-web](https://github.com/GlixStudio/glic-web)
+- **GLIX Encoder source code:** [https://github.com/GlixStudio/glic-web](https://github.com/GlixStudio/glic-web)
 - **Vibe coded by** [Glix Studio](https://home.glix.studio)
 - [Glix Shop](https://glix.shop)
 

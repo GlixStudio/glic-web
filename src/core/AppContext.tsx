@@ -47,6 +47,7 @@ import {
 } from './projects';
 
 import { DEFAULT_FILTERS, type ImageFilters } from './filters';
+import { storageKey } from './storage';
 
 export interface Toast {
     id: number;
@@ -322,7 +323,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setLastSelection(null);
         setProjectId(null);
         setProjectName('Untitled');
-        onceHint('glic_hint_load_v1', 'Image loaded - press E to encode, or pick a preset first');
+        onceHint(storageKey('hint_load_v1'), 'Image loaded - press E to encode, or pick a preset first');
     }, [onceHint, resetBackground]);
 
     const setSelection = useCallback((mask: Mask | null) => {
@@ -810,7 +811,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setActiveLayerIdState(layer.id);
             }
             onceHint(
-                'glic_hint_encode_v1',
+                storageKey('hint_encode_v1'),
                 'Tip: ENCODE (E) re-runs the active layer, NEW LAYER (R) stacks a fresh one on top - draw a selection (M, W, or B) first to glitch only part of the image'
             );
         },
