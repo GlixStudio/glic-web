@@ -1,0 +1,5 @@
+{
+  "endpoint": "https://infrapad.glixstudio.cloud",
+  "project": "encoder-app",
+  "defaultEnvironment": "dev"
+}
