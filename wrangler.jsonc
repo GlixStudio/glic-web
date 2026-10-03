@@ -16,23 +16,12 @@
   // DATABASE_URL and R2_* are not set here: Infrapad pushes them to each
   // environment's Worker, and a deploy keeps them
   "keep_vars": true,
+  // this branch builds the dev Worker (encoder-glix-dev); main keeps
+  // encoder.glix.studio for the production Worker
   "routes": [
     {
-      "pattern": "encoder.glix.studio",
+      "pattern": "beta.encoder.glix.studio",
       "custom_domain": true
     }
-  ],
-  "env": {
-    // branch previews (`wrangler deploy --env preview --name encoder-glix-dev`):
-    // the same build on the dev Worker at beta., never on the production domain
-    "preview": {
-      "routes": [
-        {
-          "pattern": "beta.encoder.glix.studio",
-          "custom_domain": true
-        }
-      ],
-      "workers_dev": true
-    }
-  }
+  ]
 }
