@@ -23,10 +23,15 @@
     }
   ],
   "env": {
-    // branch previews (`wrangler deploy --env preview --name <worker>`): the same
-    // build on a Worker of their own, never on the production domain
+    // branch previews (`wrangler deploy --env preview --name encoder-glix-dev`):
+    // the same build on the dev Worker at beta., never on the production domain
     "preview": {
-      "routes": [],
+      "routes": [
+        {
+          "pattern": "beta.encoder.glix.studio",
+          "custom_domain": true
+        }
+      ],
       "workers_dev": true
     }
   }
