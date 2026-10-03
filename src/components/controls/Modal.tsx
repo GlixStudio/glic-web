@@ -1,7 +1,12 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-/** Cream dialog shell used by the menu and mask dialogs. Escape and backdrop close it. */
+/**
+ * Cream dialog shell used by the menu and mask dialogs. Escape and backdrop close it.
+ * Portaled to <body>: opened from inside a header with backdrop-blur (the
+ * gallery's), `fixed` would otherwise be pinned to that header, not the viewport.
+ */
 export const Modal: React.FC<{
     title: string;
     onClose: () => void;
@@ -20,7 +25,7 @@ export const Modal: React.FC<{
         return () => window.removeEventListener('keydown', onKey, true);
     }, [onClose]);
 
-    return (
+    return createPortal(
         <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={onClose}
@@ -41,7 +46,8 @@ export const Modal: React.FC<{
                 <div className="p-4 overflow-y-auto custom-scrollbar">{children}</div>
                 {footer && <div className="flex gap-2 justify-end px-4 py-3 border-t border-line">{footer}</div>}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

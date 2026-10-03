@@ -14,6 +14,7 @@ import { useSession } from '../session';
 import { navigate, postPath } from '../router';
 import { formatBytes, prepareImageData, type PreparedMedia } from '../mediaPrep';
 import { packProject } from '../projectBundle';
+import { celebrate } from '../confetti';
 import { autoTags, hasEncode, imageOnlyProject } from '../editorOutput';
 import { Button, ErrorNote, Field, Spinner, inputClass } from './ui';
 
@@ -29,7 +30,7 @@ export const ShareModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const { layers, projectName, presetName, renderView, snapshotProject, config, separateChannels, toast } = useApp();
     const { settings, user } = useSession();
     const encoded = hasEncode(layers);
-    const [withProject, setWithProject] = useState(true);
+    const [withProject, setWithProject] = useState(false);
     const [title, setTitle] = useState(projectName !== 'Untitled' ? projectName : '');
     const [body, setBody] = useState('');
     // filled from how the piece was made; the user can edit them
@@ -122,6 +123,7 @@ export const ShareModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 f => setProgress(f)
             );
             toast('success', post.status === 'pending' ? 'Shared - waiting for a moderator to approve it' : 'Shared to the gallery');
+            celebrate();
             onClose();
             navigate(postPath(post.id));
         } catch (e) {
