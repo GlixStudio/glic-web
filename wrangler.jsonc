@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "encoder-glix",
+  "name": "encoder-glix-dev",
   // the community API and uploaded media (worker/index.ts) in front of the static editor build
   "main": "worker/index.ts",
   "compatibility_date": "2025-04-03",
@@ -16,23 +16,27 @@
   // DATABASE_URL and R2_* are not set here: Infrapad pushes them to each
   // environment's Worker, and a deploy keeps them
   "keep_vars": true,
+  // a plain `wrangler deploy` is the dev Worker (encoder-glix-dev) at beta., so
+  // a branch build can never take the production domain
   "routes": [
     {
-      "pattern": "encoder.glix.studio",
+      "pattern": "beta.encoder.glix.studio",
       "custom_domain": true
     }
   ],
+  "workers_dev": true,
   "env": {
-    // branch previews (`wrangler deploy --env preview --name encoder-glix-dev`):
-    // the same build on the dev Worker at beta., never on the production domain
-    "preview": {
+    // production (`wrangler deploy --env production`): the same build on the
+    // encoder-glix Worker at the production domain
+    "production": {
+      "name": "encoder-glix",
       "routes": [
         {
-          "pattern": "beta.encoder.glix.studio",
+          "pattern": "encoder.glix.studio",
           "custom_domain": true
         }
       ],
-      "workers_dev": true
+      "workers_dev": false
     }
   }
 }
