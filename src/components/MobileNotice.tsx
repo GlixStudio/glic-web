@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Monitor, Tablet } from 'lucide-react';
 import { isPhoneWidth } from '../core/viewport';
 import { storageKey } from '../core/storage';
+import { useRoute } from '../social/router';
 
 const SEEN_KEY = storageKey('mobile_notice_v1');
 
@@ -16,7 +17,9 @@ const alreadySeen = () => {
 /** once per browser on phone-sized screens: the app is built for desktop and tablet */
 export const MobileNotice: React.FC = () => {
     const [open, setOpen] = useState(() => isPhoneWidth() && !alreadySeen());
-    if (!open) return null;
+    // the gallery works fine on phones; the notice is about the editor
+    const onEditor = useRoute().name === 'editor';
+    if (!open || !onEditor) return null;
 
     const dismiss = () => {
         try {

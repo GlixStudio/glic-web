@@ -1,16 +1,34 @@
 version: 1
 project: encoder-app
 
-# Browser-only SPA, served as static assets by a Cloudflare Worker
-# (wrangler.jsonc). No server, database, cache, storage or secrets: projects
-# and presets live in the browser (IndexedDB / localStorage). The only
-# variables are opt-in diagnostics for local test and script runs.
+# The editor is a browser-only SPA; projects and presets live in the browser.
+# The community gallery (accounts, posts, reactions, comments, moderation) is
+# an API in the same Cloudflare Worker (worker/index.ts), backed by a Neon
+# Postgres database and an R2 bucket. Their variables are written by the
+# resources Infrapad provisions and pushed to the Worker; the schema is in
+# db/migrations, applied with migrate steps.
 shared: {}
 
 apps:
   web:
     path: .
     env:
+      DATABASE_URL:
+        type: string
+        required: true
+      R2_ENDPOINT:
+        type: url
+        required: true
+      R2_BUCKET:
+        type: string
+        required: true
+      R2_ACCESS_KEY_ID:
+        type: string
+        required: true
+      R2_SECRET_ACCESS_KEY:
+        type: string
+        required: true
+      # opt-in diagnostics for local test and script runs
       BENCH:
         type: boolean
         required: false

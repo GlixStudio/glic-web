@@ -6,6 +6,9 @@ import { openIncomingImage } from '../core/incomingImage';
 import { ProjectsModal } from './ProjectsModal';
 import { ExportModal } from './ExportModal';
 import { ImageSizeModal, CanvasSizeModal } from './SizeModals';
+import { openShare } from '../social/shareBus';
+import { useSession } from '../social/session';
+import { hasEncode } from '../social/editorOutput';
 
 // Pattrn-style menu bar: File (project lifecycle, import/export), Image
 // (image and canvas size), Layer (Photoshop's arrange/merge commands) and View (zoom / segmentation / chrome). Zoom state lives in the canvas viewer, so
@@ -106,6 +109,7 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         toast,
     } = useApp();
 
+    const communityOffline = useSession().offline;
     const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
     const [dialog, setDialog] = useState<'export' | 'image-size' | 'canvas-size' | null>(null);
     const [showProjects, setShowProjects] = useState(false);
@@ -183,6 +187,9 @@ export const MenuBar: React.FC<{ sidebarOpen: boolean; onToggleSidebar: () => vo
         { label: 'Export…', disabled: !originalImage, onClick: () => setDialog('export') },
         { label: 'Quick export PNG', hint: 'S', disabled: !processed, onClick: () => void savePng() },
         { label: 'Export .glic', hint: 'G', disabled: !encodedFile, onClick: saveGlic },
+        ...(communityOffline
+            ? []
+            : (['sep', { label: hasEncode(layers) ? 'Share to Gallery…' : 'Share to Gallery… (encode first)', disabled: !hasEncode(layers), onClick: openShare }] as const)),
     ];
 
     const pasteFromMenu = async () => {

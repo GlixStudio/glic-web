@@ -1,18 +1,33 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "encoder-glix",
+  // the community API and uploaded media (worker/index.ts) in front of the static editor build
+  "main": "worker/index.ts",
   "compatibility_date": "2025-04-03",
   "build": {
     "command": "npm run build"
   },
   "assets": {
     "directory": "dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/media/*"]
   },
+  // DATABASE_URL and R2_* are not set here: Infrapad pushes them to each
+  // environment's Worker, and a deploy keeps them
+  "keep_vars": true,
   "routes": [
     {
       "pattern": "encoder.glix.studio",
       "custom_domain": true
     }
-  ]
+  ],
+  "env": {
+    // branch previews (`wrangler deploy --env preview --name <worker>`): the same
+    // build on a Worker of their own, never on the production domain
+    "preview": {
+      "routes": [],
+      "workers_dev": true
+    }
+  }
 }

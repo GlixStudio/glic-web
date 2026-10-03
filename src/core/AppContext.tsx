@@ -151,6 +151,15 @@ interface AppState {
     saveProject: (opts?: { name?: string; asNew?: boolean }) => Promise<void>;
     openProject: (id: string) => Promise<void>;
     newProject: () => void;
+    /** the preset last picked, for gallery tags (null when none or a project was opened) */
+    presetName: string | null;
+    setPresetName: (name: string | null) => void;
+    /** the open document as a project record, without saving it */
+    snapshotProject: () => Promise<ProjectRecord | null>;
+    /** opens a project from elsewhere (the gallery), keeping a copy in this browser */
+    openProjectRecord: (rec: ProjectRecord) => Promise<boolean>;
+    /** what you see - the composite with adjustments baked in - or null with no image */
+    renderView: () => ImageData | null;
 
     /** downloads the composite as PNG with adjustments baked in */
     savePng: () => Promise<void>;
@@ -226,6 +235,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [lastSelection, setLastSelection] = useState<Mask | null>(null);
     const [projectId, setProjectId] = useState<string | null>(null);
     const [projectName, setProjectName] = useState('Untitled');
+    const [presetName, setPresetName] = useState<string | null>(null);
     const [masks, setMasks] = useState<SavedMask[]>([]);
 
     const configRef = useRef(config);
@@ -974,56 +984,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // --- projects ---
 
+    /** the open document as a project record (not saved anywhere) */
+    const buildProjectRecord = useCallback(
+        async (id: string, name: string): Promise<ProjectRecord | null> => {
+            const source = originalRef.current;
+            if (!source) return null;
+            const ls = layersRef.current;
+            const storedLayers: StoredLayer[] = await Promise.all(
+                ls.map(async l => ({
+                    kind: l.kind,
+                    name: l.name,
+                    visible: l.visible,
+                    opacity: l.opacity,
+                    blendMode: l.blendMode,
+                    mask: l.mask ? new Uint8Array(l.mask) : null,
+                    result: l.result ? await imageDataToPngBlob(l.result) : null,
+                    effects: l.effects,
+                    transform: l.transform,
+                    file: l.file,
+                    resolved: l.resolved,
+                    thumb: l.thumb,
+                }))
+            );
+            return {
+                id,
+                name,
+                updatedAt: Date.now(),
+                width: source.width,
+                height: source.height,
+                thumb: imageDataToThumbnail(processedRef.current ?? source, null, 96),
+                source: await imageDataToPngBlob(source),
+                layers: storedLayers,
+                activeLayerIndex: ls.findIndex(l => l.id === activeIdRef.current),
+                config: cloneConfig(configRef.current),
+                separateChannels,
+                backgroundVisible: bgVisibleRef.current,
+                backgroundLocked,
+            };
+        },
+        [separateChannels, backgroundLocked]
+    );
+
+    const newProjectId = () =>
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `p-${Date.now()}`;
+
     const saveProject = useCallback(
         async (opts: { name?: string; asNew?: boolean } = {}) => {
-            const source = originalRef.current;
-            if (!source) {
+            if (!originalRef.current) {
                 toast('info', 'Nothing to save yet - load an image first');
                 return;
             }
             try {
-                const ls = layersRef.current;
                 const keepId = !opts.asNew && projectIdRef.current;
                 const name =
                     opts.name?.trim() ||
                     (keepId && projectNameRef.current !== 'Untitled' ? projectNameRef.current : await nextProjectName());
-                const id = keepId
-                    ? projectIdRef.current!
-                    : typeof crypto !== 'undefined' && 'randomUUID' in crypto
-                      ? crypto.randomUUID()
-                      : `p-${Date.now()}`;
-
-                const storedLayers: StoredLayer[] = await Promise.all(
-                    ls.map(async l => ({
-                        kind: l.kind,
-                        name: l.name,
-                        visible: l.visible,
-                        opacity: l.opacity,
-                        blendMode: l.blendMode,
-                        mask: l.mask ? new Uint8Array(l.mask) : null,
-                        result: l.result ? await imageDataToPngBlob(l.result) : null,
-                        effects: l.effects,
-                        transform: l.transform,
-                        file: l.file,
-                        resolved: l.resolved,
-                        thumb: l.thumb,
-                    }))
-                );
-                const record: ProjectRecord = {
-                    id,
-                    name,
-                    updatedAt: Date.now(),
-                    width: source.width,
-                    height: source.height,
-                    thumb: imageDataToThumbnail(processedRef.current ?? source, null, 96),
-                    source: await imageDataToPngBlob(source),
-                    layers: storedLayers,
-                    activeLayerIndex: ls.findIndex(l => l.id === activeIdRef.current),
-                    config: cloneConfig(configRef.current),
-                    separateChannels,
-                    backgroundVisible: bgVisibleRef.current,
-                    backgroundLocked,
-                };
+                const id = keepId ? projectIdRef.current! : newProjectId();
+                const record = (await buildProjectRecord(id, name))!;
                 await saveProjectRecord(record);
                 setProjectId(id);
                 setProjectName(name);
@@ -1032,8 +1049,57 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 toast('error', `Save failed: ${(e as Error).message}`);
             }
         },
-        [separateChannels, backgroundLocked, toast]
+        [buildProjectRecord, toast]
     );
+
+    const snapshotProject = useCallback(
+        () => buildProjectRecord(projectIdRef.current ?? newProjectId(), projectNameRef.current),
+        [buildProjectRecord]
+    );
+
+    /** replaces the open document with a project record */
+    const restoreProject = useCallback(async (rec: ProjectRecord) => {
+        const source = await blobToImageData(rec.source);
+        const restored: GlitchLayer[] = await Promise.all(
+            rec.layers.map(async sl => {
+                const mask = sl.mask ? new Uint8ClampedArray(sl.mask) : null;
+                // projects saved before effects/adjustment layers existed lack these fields
+                const effects = sl.effects ?? [];
+                const base =
+                    sl.kind === 'adjustment' || !sl.result
+                        ? makeAdjustmentLayer(sl.name, effects, mask)
+                        : makeLayer(sl.name, await blobToImageData(sl.result), {
+                              mask,
+                              effects,
+                              file: sl.file,
+                              resolved: sl.resolved ? Object.assign(new CodecConfig(), sl.resolved) : null,
+                              thumb: sl.thumb,
+                          });
+                return {
+                    ...base,
+                    visible: sl.visible,
+                    opacity: sl.opacity,
+                    blendMode: sl.blendMode,
+                    transform: sl.transform ?? { ...IDENTITY_TRANSFORM },
+                };
+            })
+        );
+        setOriginalImage(source);
+        setLayers(restored);
+        setActiveLayerIdState(restored[rec.activeLayerIndex]?.id ?? restored[restored.length - 1]?.id ?? null);
+        setConfig(Object.assign(new CodecConfig(), rec.config));
+        setSeparateChannels(rec.separateChannels);
+        setBackgroundVisibleState(rec.backgroundVisible ?? true);
+        setBackgroundLockedState(rec.backgroundLocked ?? true);
+        setHistory([]);
+        setSelectionState(null);
+        setLastSelection(null);
+        setResolved(null);
+        setLastSegments(null);
+        setProjectId(rec.id);
+        setProjectName(rec.name);
+        setPresetName(null);
+    }, []);
 
     const openProject = useCallback(
         async (id: string) => {
@@ -1041,51 +1107,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             try {
                 const rec = await getProject(id);
                 if (!rec) throw new Error('project not found');
-                const source = await blobToImageData(rec.source);
-                const restored: GlitchLayer[] = await Promise.all(
-                    rec.layers.map(async sl => {
-                        const mask = sl.mask ? new Uint8ClampedArray(sl.mask) : null;
-                        // projects saved before effects/adjustment layers existed lack these fields
-                        const effects = sl.effects ?? [];
-                        const base =
-                            sl.kind === 'adjustment' || !sl.result
-                                ? makeAdjustmentLayer(sl.name, effects, mask)
-                                : makeLayer(sl.name, await blobToImageData(sl.result), {
-                                      mask,
-                                      effects,
-                                      file: sl.file,
-                                      resolved: sl.resolved ? Object.assign(new CodecConfig(), sl.resolved) : null,
-                                      thumb: sl.thumb,
-                                  });
-                        return {
-                            ...base,
-                            visible: sl.visible,
-                            opacity: sl.opacity,
-                            blendMode: sl.blendMode,
-                            transform: sl.transform ?? { ...IDENTITY_TRANSFORM },
-                        };
-                    })
-                );
-                setOriginalImage(source);
-                setLayers(restored);
-                setActiveLayerIdState(restored[rec.activeLayerIndex]?.id ?? restored[restored.length - 1]?.id ?? null);
-                setConfig(Object.assign(new CodecConfig(), rec.config));
-                setSeparateChannels(rec.separateChannels);
-                setBackgroundVisibleState(rec.backgroundVisible ?? true);
-                setBackgroundLockedState(rec.backgroundLocked ?? true);
-                setHistory([]);
-                setSelectionState(null);
-                setLastSelection(null);
-                setResolved(null);
-                setLastSegments(null);
-                setProjectId(rec.id);
-                setProjectName(rec.name);
+                await restoreProject(rec);
                 toast('success', `Opened “${rec.name}”`);
             } catch (e) {
                 toast('error', `Could not open project: ${(e as Error).message}`);
             }
         },
-        [toast]
+        [restoreProject, toast]
+    );
+
+    const openProjectRecord = useCallback(
+        async (rec: ProjectRecord) => {
+            if (glicEngine.isBusy) {
+                toast('info', 'Wait for the current encode to finish');
+                return false;
+            }
+            try {
+                // a copy of its own in this browser, so it shows up in File → Open
+                const copy: ProjectRecord = { ...rec, id: newProjectId(), updatedAt: Date.now() };
+                await saveProjectRecord(copy);
+                await restoreProject(copy);
+                toast('success', `Opened “${copy.name}” - saved to your projects`);
+                return true;
+            } catch (e) {
+                toast('error', `Could not open project: ${(e as Error).message}`);
+                return false;
+            }
+        },
+        [restoreProject, toast]
     );
 
     const newProject = useCallback(() => {
@@ -1103,6 +1152,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, [resetBackground]);
 
     // --- exports ---
+
+    const renderView = useCallback(() => {
+        const img = processedRef.current ?? originalRef.current;
+        if (!img) return null;
+        const c = imageDataToCanvas(img, filtersRef.current);
+        return c.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, c.width, c.height);
+    }, []);
 
     const savePng = useCallback(async () => {
         const img = processedRef.current;
@@ -1405,6 +1461,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             saveProject,
             openProject,
             newProject,
+            presetName,
+            setPresetName,
+            snapshotProject,
+            openProjectRecord,
+            renderView,
             savePng,
             saveGlic,
             copyImage,
@@ -1481,6 +1542,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             saveProject,
             openProject,
             newProject,
+            presetName,
+            setPresetName,
+            snapshotProject,
+            openProjectRecord,
+            renderView,
             savePng,
             saveGlic,
             copyImage,

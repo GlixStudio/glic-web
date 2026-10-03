@@ -18,7 +18,7 @@ import { getPresetNote } from '../core/extraPresets';
 import { ConceptNote } from './controls/ConceptNote';
 
 export const PresetManager: React.FC = () => {
-    const { config, setConfig, separateChannels, setSeparateChannels, toast } = useApp();
+    const { config, setConfig, separateChannels, setSeparateChannels, setPresetName, toast } = useApp();
     const [selected, setSelected] = useState<string>('');
     const [custom, setCustom] = useState<Record<string, StoredPreset>>(() => loadCustomPresets());
     const [saveName, setSaveName] = useState('');
@@ -27,6 +27,7 @@ export const PresetManager: React.FC = () => {
 
     const apply = (name: string) => {
         setSelected(name);
+        setPresetName(name || null);
         if (!name) return;
 
         if (custom[name]) {

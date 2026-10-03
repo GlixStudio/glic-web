@@ -5,6 +5,7 @@ import { START_TOUR_EVENT, revealForTour, type TourReveal } from '../core/tour';
 import { makeSampleImage } from '../core/sampleImage';
 import { isPhoneWidth } from '../core/viewport';
 import { storageKey } from '../core/storage';
+import { useRoute } from '../social/router';
 
 // Guided tour: a walk through the whole editor in chapters, spotlighting one
 // [data-tour] element per step. Steps ask the owning component to reveal what
@@ -458,6 +459,9 @@ export const Tour: React.FC = () => {
         [close]
     );
 
+    // the tour is for the editor: a first visit that lands on the gallery waits until the editor shows
+    const onEditor = useRoute().name === 'editor';
+
     // manual start + first-run auto start
     useEffect(() => {
         window.addEventListener(START_TOUR_EVENT, open);
@@ -468,12 +472,12 @@ export const Tour: React.FC = () => {
             seen = true;
         }
         // phones get the use-a-bigger-screen notice instead; the tour stays one tap away in Help
-        const t = seen || isPhoneWidth() ? null : window.setTimeout(open, 600);
+        const t = seen || !onEditor || isPhoneWidth() ? null : window.setTimeout(open, 600);
         return () => {
             window.removeEventListener(START_TOUR_EVENT, open);
             if (t) window.clearTimeout(t);
         };
-    }, [open]);
+    }, [open, onEditor]);
 
     // reveal the step's target, scroll it into view once, then follow it every frame
     useEffect(() => {
